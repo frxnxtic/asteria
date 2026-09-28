@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Астерия">
+<link rel="manifest" href="manifest.webmanifest">
+<title>АСТЕРИЯ ✨</title>
+<style>
+  :root {
+    --ink: #f2eeff; --muted: #b7aed6; --gold: #f5c86b; --lav: #c9b8ff;
+    --panel: rgba(20, 12, 42, .72); --panel-border: rgba(255,255,255,.14);
+    --accent: #8b6bff; --pink: #ff9ed2;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    background: #120b2e; color: var(--ink); touch-action: none;
+    -webkit-user-select: none; user-select: none; overscroll-behavior: none;
+    position: fixed; inset: 0;
+  }
+  canvas#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* ── заставка ── */
+  #start {
+    position: absolute; inset: 0; z-index: 50; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px;
+    background: radial-gradient(120% 120% at 50% 20%, #2b1a5e 0%, #160c33 55%, #0d0722 100%);
+    transition: opacity 1.1s ease; cursor: pointer;
+  }
+  #start.hidden { opacity: 0; pointer-events: none; }
+  #start .star {
+    font-size: 64px; filter: drop-shadow(0 0 22px rgba(245,200,107,.55));
+    animation: float 4.5s ease-in-out infinite;
+  }
+  @keyframes float { 0%,100% { transform: translateY(0) rotate(-4deg);} 50% { transform: translateY(-10px) rotate(5deg);} }
+  #start h1 {
+    font-size: clamp(40px, 9vw, 72px); font-weight: 800; letter-spacing: .14em;
+    background: linear-gradient(90deg, var(--gold), var(--pink), var(--lav));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #start .sub { color: var(--muted); font-size: 16px; letter-spacing: .06em; }
+  #start .tap { margin-top: 26px; color: var(--gold); font-size: 15px; font-weight: 600; letter-spacing: .12em;
+    animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .45;} 50% { opacity: 1;} }
+  #start .hint { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); color: #7d74a5; font-size: 12.5px; }
+
+  /* ── HUD ── */
+  #hud { position: absolute; inset: 0; z-index: 10; pointer-events: none; opacity: 0; transition: opacity .8s; }
+  #hud.on { opacity: 1; }
+  .hud-top {
+    position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 14px; right: 14px;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .chip {
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 99px;
+    padding: 7px 14px; font-size: 15px; font-weight: 700; backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .chip .em { filter: drop-shadow(0 0 6px rgba(245,200,107,.5)); }
+  #soundBtn {
+    margin-left: auto; pointer-events: auto; cursor: pointer; min-width: 44px; min-height: 44px;
+    display: grid; place-items: center; font-size: 18px;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 99px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  #timeChip { display: none; }
+  @media (min-width: 700px) { #timeChip { display: flex; } }
+
+  /* ── джойстик ── */
+  #joyBase {
+    position: absolute; width: 128px; height: 128px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.22); background: rgba(255,255,255,.06);
+    display: none; z-index: 20; pointer-events: none;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  #joyKnob {
+    position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; border-radius: 50%;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle at 35% 30%, #cbb8ff, #8b6bff 70%);
+    box-shadow: 0 4px 18px rgba(139,107,255,.65), inset 0 -4px 8px rgba(0,0,0,.25);
+  }
+
+  /* ── кнопки действий ── */
+  .act-btn {
+    position: absolute; z-index: 20; border-radius: 50%; border: 2px solid rgba(255,255,255,.28);
+    display: grid; place-items: center; font-weight: 800; color: var(--ink);
+    background: radial-gradient(circle at 35% 30%, rgba(139,107,255,.5), rgba(60,36,120,.65));
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  }
+  .act-btn:active, .act-btn.pressed { transform: scale(.92); filter: brightness(1.35); }
+  #jumpBtn {
+    right: calc(26px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom));
+    width: 84px; height: 84px; font-size: 30px; pointer-events: auto;
+  }
+  #interactBtn {
+    right: calc(128px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom));
+    width: 74px; height: 74px; font-size: 26px; pointer-events: auto; display: none;
+    border-color: rgba(245,200,107,.55);
+    background: radial-gradient(circle at 35% 30%, rgba(245,200,107,.45), rgba(120,80,30,.6));
+  }
+  #interactBtn.show { display: grid; animation: pop .25s ease; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0;} to { transform: scale(1); opacity: 1;} }
+
+  /* ── тосты ── */
+  #toast {
+    position: absolute; left: 50%; bottom: calc(120px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(14px); z-index: 30;
+    background: var(--panel); border: 1px solid rgba(245,200,107,.4); border-radius: 99px;
+    padding: 10px 20px; font-size: 14.5px; font-weight: 600; opacity: 0; pointer-events: none;
+    transition: all .4s ease; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #vignette { position: absolute; inset: 0; z-index: 5; pointer-events: none;
+    background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(8,4,20,.5) 100%); }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div class="hud-top">
+    <div class="chip"><span class="em">✨</span><span id="ffCount">0</span></div>
+    <div class="chip"><span class="em">🏮</span><span id="lanCount">0/9</span></div>
+    <div class="chip" id="timeChip"><span class="em" id="timeIcon">🌙</span><span id="timeLabel">ночь</span></div>
+    <div id="soundBtn" title="звук">🔊</div>
+  </div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div class="act-btn" id="jumpBtn">⬆️</div>
+  <div class="act-btn" id="interactBtn">🔥</div>
+  <div id="toast"></div>
+</div>
+
+<div id="start">
+  <div class="star">✨</div>
+  <h1>АСТЕРИЯ</h1>
+  <div class="sub">Ночная Гавань ждёт свою хранительницу</div>
+  <div class="tap">КОСНИСЬ, ЧТОБЫ НАЧАТЬ</div>
+  <div class="hint">джойстик — слева · камера — свайп справа · на компьютере: WASD + мышь</div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

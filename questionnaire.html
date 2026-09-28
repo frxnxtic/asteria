@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>✨ Твоя игра мечты — опросник</title>
+<style>
+  :root {
+    --bg1: #1a1033;
+    --bg2: #241548;
+    --card: rgba(255,255,255,0.055);
+    --card-border: rgba(255,255,255,0.12);
+    --gold: #f5c86b;
+    --lavender: #c9b8ff;
+    --text: #f2eeff;
+    --muted: #b7aed6;
+    --accent: #8b6bff;
+    --pink: #ff9ed2;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text);
+    background: linear-gradient(165deg, var(--bg1) 0%, var(--bg2) 55%, #160b2e 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  /* ── звёздное небо ── */
+  .stars, .stars::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  }
+  .stars {
+    background-image:
+      radial-gradient(1.5px 1.5px at 12% 22%, rgba(255,255,255,.8) 50%, transparent 51%),
+      radial-gradient(1px 1px at 68% 12%, rgba(255,255,255,.55) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 84% 34%, rgba(245,200,107,.7) 50%, transparent 51%),
+      radial-gradient(1px 1px at 32% 46%, rgba(255,255,255,.5) 50%, transparent 51%),
+      radial-gradient(2px 2px at 52% 78%, rgba(201,184,255,.65) 50%, transparent 51%),
+      radial-gradient(1px 1px at 8% 72%, rgba(255,255,255,.5) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 92% 84%, rgba(255,158,210,.6) 50%, transparent 51%),
+      radial-gradient(1px 1px at 44% 8%, rgba(255,255,255,.6) 50%, transparent 51%),
+      radial-gradient(1px 1px at 76% 62%, rgba(255,255,255,.45) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 22% 90%, rgba(245,200,107,.5) 50%, transparent 51%);
+    animation: twinkle 6s ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { from { opacity: .5; } to { opacity: 1; } }
+
+  .wrap { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 24px 16px calc(48px + env(safe-area-inset-bottom)); }
+
+  /* ── шапка ── */
+  header.hero { text-align: center; padding: 28px 8px 8px; }
+  .hero .amulet { font-size: 56px; display: block; margin-bottom: 6px; filter: drop-shadow(0 0 18px rgba(245,200,107,.45)); animation: float 5s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-8px);} }
+  h1 { font-size: 30px; margin: 0 0 10px; background: linear-gradient(90deg, var(--gold), var(--pink), var(--lavender)); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; letter-spacing: .3px; }
+  .hero p.lead { color: var(--muted); margin: 0 auto 14px; max-width: 560px; font-size: 16.5px; }
+  .hero p.sub { color: #8f84b8; font-size: 13.5px; margin: 0; }
+
+  /* ── прогресс ── */
+  .progress-sticky { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: rgba(22,11,46,.72); margin: 18px -16px 6px; padding: 10px 16px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .progress-line { height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--pink), var(--gold)); transition: width .5s cubic-bezier(.22,1,.36,1); box-shadow: 0 0 12px rgba(255,158,210,.6); }
+  .progress-text { font-size: 13px; color: var(--muted); margin-top: 7px; text-align: center; }
+
+  /* ── навигация по блокам ── */
+  nav.chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 2px; scrollbar-width: none; }
+  nav.chips::-webkit-scrollbar { display: none; }
+  nav.chips a {
+    flex: 0 0 auto; text-decoration: none; color: var(--muted); font-size: 13.5px; font-weight: 600;
+    background: var(--card); border: 1px solid var(--card-border); padding: 8px 14px; border-radius: 99px;
+  }
+  nav.chips a:active { transform: scale(.96); }
+
+  /* ── секции и вопросы ── */
+  section.block { margin-top: 34px; scroll-margin-top: 96px; }
+  .block-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+  .block-head .icon {
+    width: 52px; height: 52px; flex: 0 0 52px; display: grid; place-items: center; font-size: 27px;
+    background: linear-gradient(140deg, rgba(139,107,255,.28), rgba(255,158,210,.18));
+    border: 1px solid var(--card-border); border-radius: 16px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.28);
+  }
+  .block-head h2 { font-size: 21px; margin: 0; color: var(--gold); font-weight: 800; }
+  .block-desc { color: var(--muted); font-size: 14.5px; margin: 8px 0 18px; padding-left: 66px; }
+  @media (max-width: 480px) { .block-desc { padding-left: 0; } }
+
+  .q-card {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius);
+    padding: 18px 18px 14px; margin-bottom: 14px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.22);
+    transition: border-color .3s;
+  }
+  .q-card.answered { border-color: rgba(245,200,107,.45); }
+  .q-title { font-weight: 700; font-size: 16.5px; margin-bottom: 3px; }
+  .q-num { color: var(--gold); font-size: 13px; font-weight: 800; letter-spacing: .5px; margin-bottom: 5px; display: block; text-transform: uppercase; }
+  .q-hint { color: #9c92c4; font-size: 13.5px; margin: 2px 0 12px; }
+
+  /* ── варианты ответов ── */
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-height: 48px;
+    background: rgba(255,255,255,.045); border: 1.5px solid rgba(255,255,255,.1); border-radius: 14px;
+    cursor: pointer; transition: all .18s ease; font-size: 16px;
+  }
+  .opt:active { transform: scale(.985); }
+  .opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .opt .mark {
+    width: 24px; height: 24px; flex: 0 0 24px; border-radius: 8px; border: 2px solid rgba(255,255,255,.3);
+    display: grid; place-items: center; font-size: 14px; color: transparent; transition: all .18s;
+  }
+  .opt input[type="radio"] + .dot { border-radius: 50%; }
+  .opt.selected, .opt:has(input:checked) { border-color: var(--accent); background: rgba(139,107,255,.24); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .opt.selected .mark, .opt:has(input:checked) .mark { background: linear-gradient(140deg, var(--accent), var(--pink)); border-color: transparent; color: #fff; }
+
+  .custom-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .custom-row input[type="text"] {
+    flex: 1; padding: 12px 14px; border-radius: 14px; border: 1.5px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.22); color: var(--text); font-size: 16px; min-height: 48px;
+  }
+  .custom-row input::placeholder { color: #7d74a5; }
+
+  textarea {
+    width: 100%; min-height: 110px; padding: 14px; border-radius: 14px; resize: vertical;
+    border: 1.5px solid rgba(255,255,255,.14); background: rgba(0,0,0,.22); color: var(--text);
+    font-size: 16px; font-family: inherit; line-height: 1.5;
+  }
+  textarea:focus, .custom-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,107,255,.25); }
+  textarea::placeholder { color: #7d74a5; }
+
+  /* ── шкала 1–5 ── */
+  .scale { display: flex; gap: 6px; margin: 6px 0 8px; }
+  .scale button {
+    flex: 1; min-height: 52px; border-radius: 14px; border: 1.5px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.045); color: var(--text); font-size: 18px; font-weight: 700; cursor: pointer;
+    transition: all .18s; display: grid; place-items: center; gap: 2px;
+  }
+  .scale button small { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+  .scale button.selected { background: linear-gradient(140deg, var(--accent), var(--pink)); border-color: transparent; box-shadow: 0 4px 16px rgba(139,107,255,.45); }
+  .scale button.selected small { color: rgba(255,255,255,.85); }
+  .scale-ends { display: flex; justify-content: space-between; color: #9c92c4; font-size: 12.5px; padding: 0 4px; }
+
+  /* ── финал ── */
+  .finale { margin-top: 44px; text-align: center; }
+  .finale .big { font-size: 44px; margin-bottom: 6px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 16px 26px; min-height: 56px; border-radius: 18px; border: none; cursor: pointer;
+    font-size: 17px; font-weight: 800; font-family: inherit; text-decoration: none;
+    transition: transform .15s ease, box-shadow .2s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: linear-gradient(120deg, #a67bff, #ff9ed2 55%, #f5c86b); color: #241047; box-shadow: 0 10px 30px rgba(166,123,255,.45); width: 100%; }
+  .btn-ghost { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--card-border); margin-top: 10px; width: 100%; }
+  .finale p.note { color: #9c92c4; font-size: 14px; margin: 16px 0 22px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(30px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+    background: #2c1b56; color: var(--text); border: 1px solid rgba(245,200,107,.4); padding: 13px 22px; border-radius: 99px;
+    font-size: 15px; font-weight: 600; opacity: 0; pointer-events: none; transition: all .35s ease; z-index: 100;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 88vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 200; display: none; align-items: flex-end; justify-content: center;
+    background: rgba(10,5,25,.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .modal.open { display: flex; }
+  .modal-box {
+    background: #241548; border: 1px solid var(--card-border); border-radius: 24px 24px 0 0;
+    width: min(720px, 100%); max-height: 82vh; display: flex; flex-direction: column; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+  }
+  .modal-box h3 { margin: 0 0 8px; color: var(--gold); }
+  .modal-box textarea { flex: 1; min-height: 200px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.45; }
+  footer { text-align: center; color: #6f6699; font-size: 12.5px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="amulet">🪄</span>
+    <h1>Твоя игра мечты</h1>
+    <p class="lead">Этот опросник появился не просто так: для тебя делаю <b>настоящую игру</b> — с нуля и с любовью.
+    Чтобы она получилась именно такой, как хочется тебе, ответь, пожалуйста, на вопросы ниже.</p>
+    <p class="lead">Здесь нет правильных и неправильных ответов. Отвечай первое, что чувствуешь — так магия работает лучше всего ✨</p>
+    <p class="sub">Отвечай в любом темпе — ответы сохраняются сами, даже если закрыть страницу.</p>
+  </header>
+
+  <div class="progress-sticky">
+    <div class="progress-line"><div class="progress-fill" id="pfill"></div></div>
+    <div class="progress-text" id="ptext">Отвечено 0 из 0</div>
+    <nav class="chips" id="chips"></nav>
+  </div>
+
+  <main id="app"></main>
+
+  <div class="finale" id="finale">
+    <div class="big">🌟</div>
+    <h2 style="margin:0 0 6px;">Это всё! Ты невероятная ✨</h2>
+    <p class="note">Теперь нажми кнопку — ответы превратятся в текст. Отправь его обратно,
+    и совсем скоро игра начнёт обретать форму.</p>
+    <button class="btn btn-primary" id="btnShare">📤&nbsp; Собрать ответы и отправить</button>
+    <button class="btn btn-ghost" id="btnCopy">📋&nbsp; Просто скопировать текст ответов</button>
+    <button class="btn btn-ghost" id="btnClear">🧹&nbsp; Начать заново (стереть ответы)</button>
+  </div>
+
+  <footer>Сделано с 💜 специально для одной единственной героини</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h3>Вот твои ответы 📜</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 10px;">Выдели всё, скопируй и отправь обратно. Или нажми «Поделиться» ещё раз.</p>
+    <textarea id="modalText" readonly></textarea>
+    <button class="btn btn-primary" id="btnModalCopy">📋 Скопировать</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ══════════════════ ДАННЫЕ ОПРОСНИКА ══════════════════ */
+const SECTIONS = [
+{
+  id: "s1", icon: "👋", title: "Знакомство",
+  desc: "Пара вопросов для настройки магии.",
+  questions: [
+    { id:"q1", type:"text", title:"Как тебя зовут? (или имя, под которым ты хотела бы жить в игре)",
+      ph:"Например: Настя, Солнышко, Великая Волшебница…" },
+    { id:"q2", type:"checkbox", title:"Выбери 3–5 слов — какой должна быть игра мечты",
+      options:["Уютная 🧸","Волшебная ✨","Приключенческая 🗺️","Романтичная 💜","Загадочная 🌙","Весёлая 😄","Трогательная 🥹","Эпичная 🐉","Спокойная 🍃","Мистическая 🔮","Смешная 🤭","Красивая до мурашек 🌅"] },
+    { id:"q3", type:"radio", title:"Сколько времени ты хотела бы проводить за игрой за один вечер?",
+      options:["15–30 минут, маленькими порциями","Около часа","1–2 часа с погружением","Пусть затягивает — сколько захочу"] },
+    { id:"q4", type:"radio", title:"Какая игра по формату ближе?",
+      options:["Короткая история-подарок на один-два вечера","Среднее приключение на несколько вечеров","«Живой мир», куда хочется возвращаться снова и снова"] },
+  ]
+},
+{
+  id: "s2", icon: "🎮", title: "Любимые игры под микроскопом",
+  desc: "Ты называешь Genshin и Hogwarts Legacy — давай выясним, что именно в них покорило тебя. Это самая важная часть!",
+  questions: [
+    { id:"q5", type:"checkbox", title:"Что больше всего нравится в Genshin Impact? (можно несколько)",
+      options:["Исследование мира 🏞️","Сюжет и сюжетные квесты 📖","Персонажи и их истории 🧑‍🎤","Бои и стихии ⚔️","Красивые пейзажи и виды 🌅","Музыка 🎵","Готовка, крафт, собирательство 🍳","Коллекции и достижения 🏆","Полёты, парение, скалолазание 🪂","Скольжение по воде и движение 🏄"] },
+    { id:"q6", type:"text", title:"Твои любимые персонажи Genshin — и почему именно они?",
+      ph:"Например: Фурина — она драматичная и при этом одинокая…" },
+    { id:"q7", type:"checkbox", title:"Что больше всего нравится в Hogwarts Legacy?",
+      options:["Замок и его секреты 🏰","Заклинания и магия ✨","Полёты на метле 🧹","Сюжет 📖","Волшебные звери и зверинец 🦉","Комната требований — своя база 🚪","Квесты и загадки 🧩","Атмосфера Хогвартса: свечи, лестницы, факультеты 🕯️","Талисманы и коллекционирование 🏺"] },
+    { id:"q8", type:"text", title:"Любимые моменты, места или персонажи из мира Гарри Поттера?",
+      ph:"Например: Большой зал с плавающими свечами, Люмос, плюй-камень…" },
+    { id:"q9", type:"text", title:"Что когда-либо раздражало или не хватало в этих играх? (чтобы мы точно сделали наоборот)",
+      ph:"Например: слишком много боёв, гача-боль, мало уюта…" },
+    { id:"q10", type:"text", title:"Из каких ещё игр, фильмов, книг или мультиков хотелось бы что-то перенести в нашу игру?",
+      ph:"Например: дух студии Ghibli, «Хаул», Spirited Away, Zelda…" },
+  ]
+},
+{
+  id: "s3", icon: "🎯", title: "Суть игры",
+  desc: "Что здесь самое главное, а что — на втором плане.",
+  questions: [
+    { id:"q11", type:"radio", title:"Что в игре САМОЕ важное? (выбери одно)",
+      options:["История и персонажи 📖","Исследование мира 🗺️","Механики: колдовать, варить, собирать ⚗️","Атмосфера, уют, красота 🕯️","Загадки и испытания 🧩"] },
+    { id:"q12", type:"radio", title:"А что на втором месте?", sameAs:"q11",
+      options:["История и персонажи 📖","Исследование мира 🗺️","Механики: колдовать, варить, собирать ⚗️","Атмосфера, уют, красота 🕯️","Загадки и испытания 🧩"] },
+    { id:"q13", type:"radio", title:"Темп игры?",
+      options:["Спокойный, медитативный 🍃","Размеренный, но с приключениями ⛰️","Динамичный, чтобы дух захватывало 💫"] },
+    { id:"q14", type:"radio", title:"Бои?",
+      options:["Совсем без боёв — мир и доброта 🕊️","Лёгкие бои для разнообразия 🪄","Полноценные бои с боссами ⚔️"] },
+    { id:"q15", type:"radio", title:"Загадки и головоломки?",
+      options:["Не обязательны — я здесь отдыхать","Лёгкие и приятные, с подсказками 🧩","Хочу поломать голову 🧠"] },
+    { id:"q16", type:"scale", title:"Отношение к сложности",
+      hint:"1 — «не хочу застревать никогда», 5 — «люблю трудности и вызовы»",
+      left:"Только отдых", right:"Дай вызов" },
+  ]
+},
+{
+  id: "s4", icon: "🌍", title: "Мир и сеттинг",
+  desc: "Где всё будет происходить.",
+  questions: [
+    { id:"q17", type:"radio", title:"Где происходит действие?",
+      options:["Магическая школа-академия 🏰","Сказочные острова в небе 🏝️","Уютная деревня на опушке волшебного леса 🏡","Тайный город волшебников 🌃","Мир снов и звёзд 🌌","Долина драконов и гор 🐉"] },
+    { id:"q18", type:"radio", title:"Как устроен мир?",
+      options:["Уютный центральный хаб + несколько открытых локаций вокруг","Одна большая открытая карта с разными уголками","Цепочка отдельных уровней-«глав»"] },
+    { id:"q19", type:"radio", title:"Смена дня и ночи, погода?",
+      options:["Да! Ночь, звёзды, дождь — обязательно 🌙","Не важно, пусть всегда красиво ☀️"] },
+    { id:"q20", type:"scale", title:"Насколько важны секреты и спрятанные пасхалки?",
+      left:"Не важно", right:"Обожаю секреты!" },
+    { id:"q21", type:"text", title:"Три места мечты, которые ты хотела бы увидеть в игре",
+      ph:"Например: библиотека с лестницами в облаках, озеро с лунным мостом, лавка сладостей…" },
+    { id:"q22", type:"checkbox", title:"Настроение и цвета мира",
+      options:["Тёплое и солнечное ☀️","Мистическое ночное 🌙","Сказочное пастельное 🌸","Осенне-уютное, тыквы и пледы 🍂","Зимне-волшебное, снег и гирлянды ❄️","Насыщенное и разноцветное, как в Genshin 🌈"] },
+  ]
+},
+{
+  id: "s5", icon: "🦸‍♀️", title: "Героиня",
+  desc: "Кем ты будешь в этой игре.",
+  questions: [
+    { id:"q23", type:"radio", title:"Кто главная героиня?",
+      options:["Я сама 🙂","Персонаж, похожий на меня","Милый талисман: котик, лисёнок, дракончик 🐾","Не задумывалась — доверься разработчику 😌"] },
+    { id:"q24", type:"text", title:"Имя героини в игре?",
+      ph:"Можно любое — даже тайное волшебное имя" },
+    { id:"q25", type:"text", title:"Опиши героиню: внешность, характер, а если хочешь — суперспособность мечты",
+      ph:"Например: длинные тёмные волосы, любопытная, умеет говорить с луной…" },
+    { id:"q26", type:"checkbox", title:"Кто сопровождает героиню в пути?",
+      options:["Верный питомец 🐾","Спутник-человек 🧑‍🤝‍🧑","Волшебный предмет-помощник (как волшебная палочка или книга заклинаний) 🗝️","Я сама по себе, независимая волшебница 🌙"] },
+    { id:"q27", type:"text", title:"Если питомец — то кто? Опиши идеального компаньона 🐾",
+      ph:"Например: чёрный кот со звёздной шерстью, маленький дракончик, сова…" },
+  ]
+},
+{
+  id: "s6", icon: "✨", title: "Магия и способности",
+  desc: "Насколько волшебным будет мир.",
+  questions: [
+    { id:"q28", type:"radio", title:"Магия в игре?",
+      options:["Да! Магия — сердце игры ✨","Немного волшебства для атмосферы","Без магии, другие чудеса"] },
+    { id:"q29", type:"checkbox", title:"Какие стихии / школы магии тебе ближе?",
+      options:["Огонь 🔥","Вода и лёд 💧","Ветер 🌪️","Земля и кристаллы 🪨","Свет ✨","Тени и луна 🌑","Природа и растения 🌿","Звёзды и космос 🌟","Время ⏳","Любовь и исцеление 💗"] },
+    { id:"q30", type:"radio", title:"Варить зелья интересно?",
+      options:["Да! Собирать ингредиенты и варить — мечта ⚗️","Если это просто и весело","Не очень"] },
+    { id:"q31", type:"radio", title:"Полёты? (метла, парение, верхом на существе)",
+      options:["Да! Полёты обязательны 🧹","Приятно, но не обязательно","Не нужно"] },
+    { id:"q32", type:"radio", title:"Приручать и заботиться о волшебных существах?",
+      options:["ДА. Дай мне всех зверей 🥺","Пара милых встреч — достаточно","Не обязательно"] },
+    { id:"q33", type:"text", title:"Если бы у тебя была ровно одна способность в реальной жизни — какая?",
+      ph:"Это подскажет, какую магию делать главной в игре" },
+  ]
+},
+{
+  id: "s7", icon: "📈", title: "Развитие и коллекции",
+  desc: "Как растёт героиня и что хочется собирать.",
+  questions: [
+    { id:"q34", type:"radio", title:"Прокачка и развитие?",
+      options:["Уровни, навыки, характеристики 📊","Новые способности открываются по сюжету 🗝️","Без прокачки — просто история и мир"] },
+    { id:"q35", type:"checkbox", title:"Что хочется коллекционировать?",
+      options:["Артефакты и реликвии 🏺","Костюмы и наряды 👗","Питомцы 🐾","Рецепты и ингредиенты 📜","Достижения 🏅","Украшения для дома 🖼️","Светлячков, звёздочки, блёстки ✨"] },
+    { id:"q36", type:"radio", title:"Свой дом / убежище? (как Чайник безмятежности или Комната требований)",
+      options:["Да! Свой дом, который можно украшать 🏠","Просто база-мастерская, без декора","Не нужно"] },
+    { id:"q37", type:"radio", title:"Какие награды приятнее?",
+      options:["За исследование: нашла секрет — получила сокровище 🗺️","За квесты и историю 📖","За мастерство: испытания и навыки 🎯"] },
+  ]
+},
+{
+  id: "s8", icon: "💜", title: "История и эмоции",
+  desc: "Сердце игры — то, что останется в памяти.",
+  questions: [
+    { id:"q38", type:"radio", title:"Какая история тебе ближе?",
+      options:["Романтическое приключение 💜","Великое приключение с важной целью 🗺️","Уютная бытовая магия: дни из жизни волшебницы 🍵","Тайна или детектив, который надо распутать 🔎","Спасение волшебного мира от беды 🌍"] },
+    { id:"q39", type:"radio", title:"Какой финал?",
+      options:["Один счастливый, тёплый финал 🌅","Несколько концовок в зависимости от решений","Открытый финал с продолжением"] },
+    { id:"q40", type:"radio", title:"Выборы в диалогах?",
+      options:["Да! Пусть мои решения влияют на историю","Простые диалоги без сложных выборов","Минимум текста — больше действия и красоты"] },
+    { id:"q41", type:"checkbox", title:"Что ты хочешь почувствовать, когда пройдёшь игру?",
+      options:["«Это было про меня» 🥹","Гордость: «я справилась» 🏆","Тепло и уют 🤗","Восхищение: «вау, как красиво» 😲","Желание показать друзьям 📣","Желание переиграть ещё раз 🔁"] },
+    { id:"q42", type:"text", title:"Личные детали: важные даты, места, песня, шутки, воспоминания — всё, что можно вплести в игру",
+      hint:"Это конфиденциально и попадёт только в игру 💜",
+      ph:"Например: наше место, дата знакомства, как я называю тебя, любимая общая песня…" },
+    { id:"q43", type:"text", title:"Игра приурочена к событию?",
+      ph:"Например: день рождения, годовщина, «просто потому что люблю» + дата" },
+  ]
+},
+{
+  id: "s9", icon: "📱", title: "iPad и управление",
+  desc: "Игра будет на твоём iPad — сделаем так, чтобы было удобно.",
+  questions: [
+    { id:"q44", type:"radio", title:"Как удобнее управлять?",
+      options:["Виртуальный джойстик слева + кнопки справа (как в Genshin) 🕹️","Тап по экрану — героиня идёт туда 👆","Свайпы и жесты 🤏","Доверься разработчику, он разберётся 😌"] },
+    { id:"q45", type:"radio", title:"Как держишь iPad во время игр?",
+      options:["Горизонтально 🔄","Вертикально 📱","По-разному"] },
+    { id:"q46", type:"radio", title:"Формат игровых сессий?",
+      options:["Короткие заходы по 10–15 минут","Долгие вечера с погружением","И так, и так"] },
+    { id:"q47", type:"radio", title:"Сохранения?",
+      options:["Обязательно: закрыла — вернулась с того же места 💾","Не критично"] },
+  ]
+},
+{
+  id: "s10", icon: "🎨", title: "Картинка и звук",
+  desc: "Как игра должна выглядеть и звучать.",
+  questions: [
+    { id:"q48", type:"radio", title:"Арт-стиль?",
+      options:["Аниме, как Genshin 🌸","Сказочный мультяшный 🎨","Тёплый рисованный, как книжка-иллюстрация 🖌️","Пиксель-арт, милый ретро-стиль 👾","Стилизованный 3D, как мультфильм 🏰","Доверься разработчику 😌"] },
+    { id:"q49", type:"checkbox", title:"Цветовая палитра?",
+      options:["Пастельная и нежная 🎀","Тёплые закатные тона 🌇","Тёмные мистические с золотом 🕯️","Яркие и контрастные 🌈","Лунные синие оттенки 🌘"] },
+    { id:"q50", type:"radio", title:"Музыка?",
+      options:["Нежная фортепианная, как вечер у камина 🎹","Оркестровая волшебная, как в кино 🎻","Уютный lo-fi / лаундж 🎧","Природные звуки: лес, дождь, ветер 🍃"] },
+    { id:"q51", type:"scale", title:"Насколько музыка важна для атмосферы?",
+      left:"Можно без неё", right:"Музыка = половина игры" },
+    { id:"q52", type:"radio", title:"Текст и диалоги?",
+      options:["Красивые диалоги с портретами персонажей 💬","Побольше визуала, поменьше текста 🖼️","Смешно и легко, с эмодзи и шутками 😄"] },
+  ]
+},
+{
+  id: "s11", icon: "🌠", title: "Творческий полёт",
+  desc: "Финальные и самые важные вопросы. Здесь можно всё.",
+  questions: [
+    { id:"q53", type:"text", title:"Опиши идеальный игровой вечер: с чего игра начинается, что ты делаешь, чем заканчивается",
+      ph:"Например: просыпаюсь в башне, варю зелье, иду к водопаду за ингредиентом, вечером — праздник в деревне…" },
+    { id:"q54", type:"text", title:"Если бы можно было добавить ЛЮБУЮ фишку без ограничений — что бы это было?",
+      ph:"Мечтай на полную, ограничения — проблема разработчика, не твоя 😌" },
+    { id:"q55", type:"text", title:"Чего в игре точно НЕ должно быть?",
+      ph:"Например: страшных моментов, таймеров, соревнований, грустных концовок…" },
+    { id:"q56", type:"text", title:"Последний штрих: что-нибудь, что хочется сказать разработчику этой игры 💬",
+      ph:"Он прочитает это первым делом утром 🙂" },
+  ]
+},
+];
+
+/* ══════════════════ РЕНДЕР ══════════════════ */
+const LS_KEY = "game_dream_questionnaire_v1";
+const state = loadState();
+const app = document.getElementById("app");
+const chips = document.getElementById("chips");
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function saveState() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+
+let totalQ = 0;
+SECTIONS.forEach(sec => {
+  totalQ += sec.questions.length;
+
+  const chip = document.createElement("a");
+  chip.href = "#" + sec.id;
+  chip.textContent = sec.icon + " " + sec.title;
+  chips.appendChild(chip);
+
+  const el = document.createElement("section");
+  el.className = "block"; el.id = sec.id;
+  el.innerHTML = `
+    <div class="block-head"><div class="icon">${sec.icon}</div><h2>${sec.title}</h2></div>
+    <p class="block-desc">${sec.desc}</p>`;
+
+  sec.questions.forEach((q, qi) => {
+    const card = document.createElement("div");
+    card.className = "q-card"; card.id = "card-" + q.id;
+    const numLabel = `<span class="q-num">Вопрос ${globalNum(q.id)}</span>`;
+    let inner = "";
+
+    if (q.type === "text") {
+      inner = `<div class="q-title">${q.title}</div>
+        ${q.hint ? `<div class="q-hint">${q.hint}</div>` : ""}
+        <textarea data-q="${q.id}" placeholder="${q.ph || ""}"></textarea>`;
+    }
+    else if (q.type === "radio" || q.type === "checkbox") {
+      const inputType = q.type;
+      let opts = q.options.map((o, oi) => `
+        <label class="opt" data-q="${q.id}" data-oi="${oi}">
+          <input type="${inputType}" name="${q.id}" value="${oi}">
+          <span class="mark">${inputType === "radio" ? "●" : "✓"}</span>
+          <span>${o}</span>
+        </label>`).join("");
+      opts += `
+        <label class="opt custom" data-q="${q.id}" data-oi="custom">
+          <input type="${inputType}" name="${q.id}" value="custom">
+          <span class="mark">${inputType === "radio" ? "●" : "✓"}</span>
+          <span>Свой вариант ✍️</span>
+        </label>
+        <div class="custom-row"><input type="text" data-custom="${q.id}" placeholder="Свой вариант: напиши здесь…"></div>`;
+      inner = `<div class="q-title">${q.title}</div>
+        ${q.hint ? `<div class="q-hint">${q.hint}</div>` : ""}
+        <div class="opts">${opts}</div>`;
+    }
+    else if (q.type === "scale") {
+      const marks = [1,2,3,4,5].map(n =>
+        `<button data-q="${q.id}" data-n="${n}">${n === 1 || n === 5 ? `<small>${n === 1 ? esc(q.left) : esc(q.right)}</small>` : ""}${n}</button>`).join("");
+      inner = `<div class="q-title">${q.title}</div>
+        ${q.hint ? `<div class="q-hint">${q.hint}</div>` : ""}
+        <div class="scale">${marks}</div>
+        <div class="scale-ends"><span>${esc(q.left)}</span><span>${esc(q.right)}</span></div>`;
+    }
+    card.innerHTML = numLabel + inner;
+    el.appendChild(card);
+  });
+  app.appendChild(el);
+});
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function globalNum(qid) {
+  let n = 0;
+  for (const sec of SECTIONS) for (const q of sec.questions) { n++; if (q.id === qid) return n; }
+  return n;
+}
+function findQ(qid) {
+  for (const sec of SECTIONS) for (const q of sec.questions) if (q.id === qid) return q;
+  return null;
+}
+
+/* ── восстановление сохранённых ответов ── */
+restore();
+
+/* ── события ── */
+app.addEventListener("change", e => {
+  const t = e.target;
+  if (t.tagName === "TEXTAREA" && t.dataset.q) {
+    state[t.dataset.q] = { text: t.value };
+  }
+  if (t.type === "radio" || t.type === "checkbox") {
+    const qid = t.dataset.q || t.name;
+    const q = findQ(qid);
+    if (q.type === "radio") {
+      state[qid] = state[qid] || {};
+      state[qid].sel = [t.value];
+      syncCustomVis(qid);
+    } else {
+      state[qid] = state[qid] || {};
+      const checked = [...app.querySelectorAll(`input[name="${qid}"]:checked`)].map(i => i.value);
+      state[qid].sel = checked;
+      syncCustomVis(qid);
+    }
+  }
+  if (t.dataset.custom) {
+    const qid = t.dataset.custom;
+    state[qid] = state[qid] || {};
+    state[qid].custom = t.value;
+  }
+  saveState(); refresh();
+});
+
+app.addEventListener("input", e => {
+  const t = e.target;
+  if (t.tagName === "TEXTAREA" && t.dataset.q) {
+    state[t.dataset.q] = state[t.dataset.q] || {};
+    state[t.dataset.q].text = t.value;
+    saveState(); refresh();
+  }
+  if (t.dataset.custom) {
+    const qid = t.dataset.custom;
+    state[qid] = state[qid] || {};
+    state[qid].custom = t.value;
+    saveState(); refresh();
+  }
+});
+
+app.addEventListener("click", e => {
+  const btn = e.target.closest(".scale button");
+  if (btn) {
+    const qid = btn.dataset.q;
+    state[qid] = { scale: +btn.dataset.n };
+    saveState(); refresh();
+  }
+  const opt = e.target.closest(".opt.custom");
+  if (opt) {
+    const input = opt.querySelector("input");
+    const row = opt.nextElementSibling;
+    if (row && input.checked) row.querySelector("input").focus();
+  }
+});
+
+function syncCustomVis(qid) {
+  const st = state[qid] || {};
+  const hasCustom = st.sel && st.sel.includes("custom");
+  const row = app.querySelector(`[data-custom="${qid}"]`);
+  if (row) row.style.display = hasCustom ? "flex" : "none";
+}
+
+function restore() {
+  Object.keys(state).forEach(qid => {
+    const st = state[qid], q = findQ(qid);
+    if (!q) return;
+    if (q.type === "text") {
+      const ta = app.querySelector(`textarea[data-q="${qid}"]`);
+      if (ta && st.text) ta.value = st.text;
+    } else if (q.type === "radio" || q.type === "checkbox") {
+      (st.sel || []).forEach(v => {
+        const inp = app.querySelector(`input[name="${qid}"][value="${v}"]`);
+        if (inp) inp.checked = true;
+      });
+      const ci = app.querySelector(`[data-custom="${qid}"]`);
+      if (ci && st.custom) ci.value = st.custom;
+      syncCustomVis(qid);
+    } else if (q.type === "scale") {
+      if (st.scale) {
+        const b = app.querySelector(`.scale button[data-q="${qid}"][data-n="${st.scale}"]`);
+        if (b) b.classList.add("selected");
+      }
+    }
+  });
+}
+
+/* ── подсветка отвеченных, прогресс ── */
+function isAnswered(qid, st) {
+  if (!st) return false;
+  const q = findQ(qid);
+  if (q.type === "text") return !!(st.text && st.text.trim());
+  if (q.type === "scale") return !!st.scale;
+  const hasSel = st.sel && st.sel.length > 0 && !(st.sel.length === 1 && st.sel[0] === "custom" && !(st.custom || "").trim());
+  return !!hasSel;
+}
+function refresh() {
+  let answered = 0;
+  app.querySelectorAll(".opt").forEach(l => {
+    const inp = l.querySelector("input");
+    l.classList.toggle("selected", !!(inp && inp.checked));
+  });
+  SECTIONS.forEach(sec => sec.questions.forEach(q => {
+    const ok = isAnswered(q.id, state[q.id]);
+    const card = document.getElementById("card-" + q.id);
+    if (card) card.classList.toggle("answered", ok);
+    if (ok) answered++;
+    if (q.type === "scale") {
+      app.querySelectorAll(`.scale button[data-q="${q.id}"]`).forEach(b =>
+        b.classList.toggle("selected", !!state[q.id] && +b.dataset.n === state[q.id].scale));
+    }
+  }));
+  document.getElementById("pfill").style.width = (answered / totalQ * 100) + "%";
+  document.getElementById("ptext").textContent = `Отвечено ${answered} из ${totalQ} ✨`;
+}
+refresh();
+
+/* ══════════════════ ЭКСПОРТ ══════════════════ */
+function buildReport() {
+  const now = new Date();
+  const date = now.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  let out = `🪄 ОПРОСНИК «ТВОЯ ИГРА МЕЧТЫ»\nДата: ${date}\n`;
+  let answeredTotal = 0;
+  SECTIONS.forEach(sec => {
+    out += `\n━━━━━━━━━━━━━━━━━━━━\n${sec.icon} ${sec.title.toUpperCase()}\n━━━━━━━━━━━━━━━━━━━━\n`;
+    sec.questions.forEach(q => {
+      const st = state[q.id];
+      out += `\n${globalNum(q.id)}. ${q.title}\n`;
+      if (isAnswered(q.id, st)) {
+        answeredTotal++;
+        if (q.type === "text") out += `→ ${st.text.trim()}\n`;
+        else if (q.type === "scale") out += `→ ${st.scale} / 5\n`;
+        else {
+          const labels = (st.sel || []).map(v => v === "custom" ? `✍️ ${((st.custom||"").trim() || "(не дописано)")}` : q.options[+v]);
+          out += `→ ${labels.join("; ")}\n`;
+        }
+      } else out += `→ —\n`;
+    });
+  });
+  out += `\n━━━━━━━━━━━━━━━━━━━━\n✨ Отвечено: ${answeredTotal} из ${totalQ}\nСпасибо! Осталось отправить этот текст обратно 💜\n`;
+  return out;
+}
+
+const toast = document.getElementById("toast");
+let toastTimer;
+function showToast(msg) {
+  toast.textContent = msg; toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+}
+
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); return true; }
+  catch (e) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta); return ok;
+    } catch (e2) { return false; }
+  }
+}
+
+document.getElementById("btnShare").addEventListener("click", async () => {
+  const txt = buildReport();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Моя игра мечты — ответы", text: txt });
+      showToast("Спасибо! 💜"); return;
+    } catch (e) { if (e.name === "AbortError") return; }
+  }
+  openModal(txt);
+});
+document.getElementById("btnCopy").addEventListener("click", async () => {
+  const ok = await copyText(buildReport());
+  showToast(ok ? "Ответы скопированы! Отправь их обратно 📋💜" : "Не получилось — открою текст для ручного копирования");
+  if (!ok) openModal(buildReport());
+});
+document.getElementById("btnClear").addEventListener("click", () => {
+  if (confirm("Точно стереть все ответы и начать заново?")) {
+    Object.keys(state).forEach(k => delete state[k]);
+    try { localStorage.removeItem(LS_KEY); } catch (e) {}
+    location.reload();
+  }
+});
+
+const modal = document.getElementById("modal");
+function openModal(txt) {
+  document.getElementById("modalText").value = txt;
+  modal.classList.add("open");
+}
+modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
+document.getElementById("btnModalCopy").addEventListener("click", async () => {
+  const ok = await copyText(document.getElementById("modalText").value);
+  showToast(ok ? "Скопировано! 📋" : "Выдели текст вручную и скопируй");
+});
+</script>
+</body>
+</html>
