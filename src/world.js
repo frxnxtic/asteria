@@ -447,7 +447,7 @@ export function createWorld(scene, renderer) {
   const world = {
     colliders, lanterns, dayT: 0.56, nightF: 1, firefliesCollected: 0,
     onCollect: null, onLantern: null,
-    burst,
+    burst, glowTex: glow,
   };
 
   world.lightLantern = (i) => {

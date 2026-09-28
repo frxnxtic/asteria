@@ -10,6 +10,10 @@ export class Input {
     this.camDelta = { x: 0, y: 0 };  // дельта вращения камеры за кадр
     this.jumpQueued = false;
     this.interactQueued = false;
+    this.attackQueued = false;
+    this.blinkQueued = false;
+    this.potionQueued = false;
+    this.dialogTap = false;
     this.keys = {};
     this._joyId = null; this._joyOrigin = { x: 0, y: 0 };
     this._camId = null; this._camLast = { x: 0, y: 0 };
@@ -18,7 +22,16 @@ export class Input {
 
     this._btn("jumpBtn", () => { this.jumpQueued = true; });
     this._btn("interactBtn", () => { this.interactQueued = true; });
+    this._btn("attackBtn", () => { this.attackQueued = true; });
+    this._btn("blinkBtn", () => { this.blinkQueued = true; });
+    this._btn("potionBtn", () => { this.potionQueued = true; });
     this._bind();
+  }
+
+  // затемнение кнопки на время кулдауна (fraction 0..1, где 1 = готово)
+  setCooldown(id, fraction) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("cooldown", fraction < 1);
   }
 
   _btn(id, cb) {
@@ -42,6 +55,9 @@ export class Input {
       this.keys[e.code] = true;
       if (e.code === "Space") { this.jumpQueued = true; e.preventDefault(); }
       if (e.code === "KeyE") this.interactQueued = true;
+      if (e.code === "KeyJ" || e.code === "KeyF") this.attackQueued = true;
+      if (e.code === "KeyB" || e.code === "ShiftLeft") this.blinkQueued = true;
+      if (e.code === "KeyQ") this.potionQueued = true;
     });
     window.addEventListener("keyup", e => { this.keys[e.code] = false; });
 
@@ -114,6 +130,7 @@ export class Input {
 
   // вызывается каждый кадр перед использованием; собирает клавиатуру в move
   update() {
+    if (this._locked) { this.move.x = 0; this.move.y = 0; this.mag = 0; return; }
     let kx = 0, ky = 0;
     if (this.keys["KeyW"] || this.keys["ArrowUp"]) ky -= 1;
     if (this.keys["KeyS"] || this.keys["ArrowDown"]) ky += 1;
@@ -129,6 +146,15 @@ export class Input {
 
   consumeJump() { const v = this.jumpQueued; this.jumpQueued = false; return v; }
   consumeInteract() { const v = this.interactQueued; this.interactQueued = false; return v; }
+  consumeAttack() { const v = this.attackQueued; this.attackQueued = false; return v; }
+  consumeBlink() { const v = this.blinkQueued; this.blinkQueued = false; return v; }
+  consumePotion() { const v = this.potionQueued; this.potionQueued = false; return v; }
+  // движение блокируется во время диалога
+  setLocked(lock) {
+    this._locked = lock;
+    if (lock) { this.move.x = 0; this.move.y = 0; this.mag = 0; }
+  }
+  get locked() { return !!this._locked; }
   takeCamDelta() {
     const d = { x: this.camDelta.x, y: this.camDelta.y };
     this.camDelta.x = 0; this.camDelta.y = 0;

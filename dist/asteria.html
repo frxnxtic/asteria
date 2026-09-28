@@ -92,21 +92,87 @@
     display: grid; place-items: center; font-weight: 800; color: var(--ink);
     background: radial-gradient(circle at 35% 30%, rgba(139,107,255,.5), rgba(60,36,120,.65));
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 6px 20px rgba(0,0,0,.4);
+    box-shadow: 0 6px 20px rgba(0,0,0,.4); transition: opacity .2s;
   }
   .act-btn:active, .act-btn.pressed { transform: scale(.92); filter: brightness(1.35); }
+  .act-btn.cooldown { opacity: .38; }
+  #attackBtn {
+    right: calc(30px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom));
+    width: 92px; height: 92px; font-size: 34px; pointer-events: auto;
+    border-color: rgba(245,200,107,.5);
+    background: radial-gradient(circle at 35% 30%, rgba(245,200,107,.45), rgba(110,75,25,.6));
+  }
   #jumpBtn {
     right: calc(26px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom));
-    width: 84px; height: 84px; font-size: 30px; pointer-events: auto;
+    width: 76px; height: 76px; font-size: 27px; pointer-events: auto;
+  }
+  #blinkBtn {
+    right: calc(136px + env(safe-area-inset-right)); bottom: calc(44px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px; font-size: 24px; pointer-events: auto;
+  }
+  #potionBtn {
+    right: calc(126px + env(safe-area-inset-right)); bottom: calc(128px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; font-size: 21px; pointer-events: auto;
+    border-color: rgba(255,158,210,.5);
+    background: radial-gradient(circle at 35% 30%, rgba(255,158,210,.42), rgba(110,45,80,.6));
+  }
+  #potionBtn .qty {
+    position: absolute; right: -4px; top: -4px; min-width: 22px; height: 22px; border-radius: 99px;
+    background: var(--pink); color: #40142c; font-size: 13px; font-weight: 800;
+    display: grid; place-items: center; padding: 0 4px;
   }
   #interactBtn {
-    right: calc(128px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom));
+    right: calc(136px + env(safe-area-inset-right)); bottom: calc(212px + env(safe-area-inset-bottom));
     width: 74px; height: 74px; font-size: 26px; pointer-events: auto; display: none;
     border-color: rgba(245,200,107,.55);
     background: radial-gradient(circle at 35% 30%, rgba(245,200,107,.45), rgba(120,80,30,.6));
   }
   #interactBtn.show { display: grid; animation: pop .25s ease; }
   @keyframes pop { from { transform: scale(.6); opacity: 0;} to { transform: scale(1); opacity: 1;} }
+
+  /* ── HP-звёзды ── */
+  #hpBar { position: absolute; top: calc(58px + env(safe-area-inset-top)); left: 16px; display: flex; gap: 3px; }
+  #hpBar .hp { font-size: 19px; filter: drop-shadow(0 0 5px rgba(245,200,107,.6)); transition: all .3s; }
+  #hpBar .hp.off { opacity: .18; filter: grayscale(1); transform: scale(.85); }
+
+  /* ── виджет цели ── */
+  #objective {
+    position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid rgba(245,200,107,.35); border-radius: 99px;
+    padding: 7px 16px; font-size: 14px; font-weight: 700; color: var(--gold);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); white-space: nowrap;
+    max-width: 86vw; overflow: hidden; text-overflow: ellipsis; transition: opacity .4s;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  #objective.flash { animation: objflash 1.2s ease; }
+  @keyframes objflash { 0% { transform: translateX(-50%) scale(1);} 30% { transform: translateX(-50%) scale(1.12);} 100% { transform: translateX(-50%) scale(1);} }
+
+  /* ── диалоговое окно ── */
+  #dialog {
+    position: absolute; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom));
+    transform: translateX(-50%); width: min(620px, 92vw); z-index: 25; display: none;
+    background: rgba(18, 10, 38, .92); border: 1px solid rgba(201,184,255,.35);
+    border-radius: 18px; padding: 14px 16px; cursor: pointer;
+    box-shadow: 0 12px 40px rgba(0,0,0,.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  #dialog.open { display: flex; gap: 12px; animation: dpop .25s ease; }
+  @keyframes dpop { from { transform: translateX(-50%) translateY(16px); opacity: 0;} to { transform: translateX(-50%) translateY(0); opacity: 1;} }
+  #dialog .avatar {
+    width: 54px; height: 54px; flex: 0 0 54px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 30px; background: radial-gradient(circle at 35% 30%, #4a3a7a, #241548);
+    border: 2px solid rgba(245,200,107,.5);
+  }
+  #dialog .body { flex: 1; }
+  #dialog .who { color: var(--gold); font-weight: 800; font-size: 14px; letter-spacing: .06em; margin-bottom: 3px; }
+  #dialog .line { font-size: 16.5px; line-height: 1.45; min-height: 44px; }
+  #dialog .next { color: var(--lav); font-size: 12px; text-align: right; animation: pulse 1.6s infinite; }
+
+  #hurtFx {
+    position: absolute; inset: 0; z-index: 15; pointer-events: none; opacity: 0;
+    background: radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(200,30,60,.55) 100%);
+    transition: opacity .12s;
+  }
+  #hurtFx.on { opacity: 1; }
 
   /* ── тосты ── */
   #toast {
@@ -134,11 +200,26 @@
     <div class="chip" id="timeChip"><span class="em" id="timeIcon">🌙</span><span id="timeLabel">ночь</span></div>
     <div id="soundBtn" title="звук">🔊</div>
   </div>
+  <div id="objective">✨ Пробудись, хранительница…</div>
+  <div id="hpBar"></div>
   <div id="joyBase"><div id="joyKnob"></div></div>
-  <div class="act-btn" id="jumpBtn">⬆️</div>
   <div class="act-btn" id="interactBtn">🔥</div>
+  <div class="act-btn" id="potionBtn">🧪<span class="qty" id="potionQty">0</span></div>
+  <div class="act-btn" id="attackBtn">✦</div>
+  <div class="act-btn" id="blinkBtn">💫</div>
+  <div class="act-btn" id="jumpBtn">⬆️</div>
   <div id="toast"></div>
 </div>
+
+<div id="dialog">
+  <div class="avatar" id="dlgAvatar">🧑</div>
+  <div class="body">
+    <div class="who" id="dlgWho"></div>
+    <div class="line" id="dlgLine"></div>
+    <div class="next">коснись ▸</div>
+  </div>
+</div>
+<div id="hurtFx"></div>
 
 <div id="start">
   <div class="star">✨</div>
@@ -148,6 +229,11 @@
   <div class="hint">джойстик — слева · камера — свайп справа · на компьютере: WASD + мышь</div>
 </div>
 
+<script>
+window.__log = [];
+window.addEventListener("error", e => window.__log.push(e.message + " @" + (e.filename || "") + ":" + e.lineno));
+window.addEventListener("unhandledrejection", e => window.__log.push("rejection: " + e.reason));
+</script>
 <script>
 try {
 (function(){
@@ -80473,6 +80559,10 @@ class Input {
     this.camDelta = { x: 0, y: 0 };  // дельта вращения камеры за кадр
     this.jumpQueued = false;
     this.interactQueued = false;
+    this.attackQueued = false;
+    this.blinkQueued = false;
+    this.potionQueued = false;
+    this.dialogTap = false;
     this.keys = {};
     this._joyId = null; this._joyOrigin = { x: 0, y: 0 };
     this._camId = null; this._camLast = { x: 0, y: 0 };
@@ -80481,7 +80571,16 @@ class Input {
 
     this._btn("jumpBtn", () => { this.jumpQueued = true; });
     this._btn("interactBtn", () => { this.interactQueued = true; });
+    this._btn("attackBtn", () => { this.attackQueued = true; });
+    this._btn("blinkBtn", () => { this.blinkQueued = true; });
+    this._btn("potionBtn", () => { this.potionQueued = true; });
     this._bind();
+  }
+
+  // затемнение кнопки на время кулдауна (fraction 0..1, где 1 = готово)
+  setCooldown(id, fraction) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("cooldown", fraction < 1);
   }
 
   _btn(id, cb) {
@@ -80505,6 +80604,9 @@ class Input {
       this.keys[e.code] = true;
       if (e.code === "Space") { this.jumpQueued = true; e.preventDefault(); }
       if (e.code === "KeyE") this.interactQueued = true;
+      if (e.code === "KeyJ" || e.code === "KeyF") this.attackQueued = true;
+      if (e.code === "KeyB" || e.code === "ShiftLeft") this.blinkQueued = true;
+      if (e.code === "KeyQ") this.potionQueued = true;
     });
     window.addEventListener("keyup", e => { this.keys[e.code] = false; });
 
@@ -80577,6 +80679,7 @@ class Input {
 
   // вызывается каждый кадр перед использованием; собирает клавиатуру в move
   update() {
+    if (this._locked) { this.move.x = 0; this.move.y = 0; this.mag = 0; return; }
     let kx = 0, ky = 0;
     if (this.keys["KeyW"] || this.keys["ArrowUp"]) ky -= 1;
     if (this.keys["KeyS"] || this.keys["ArrowDown"]) ky += 1;
@@ -80592,6 +80695,15 @@ class Input {
 
   consumeJump() { const v = this.jumpQueued; this.jumpQueued = false; return v; }
   consumeInteract() { const v = this.interactQueued; this.interactQueued = false; return v; }
+  consumeAttack() { const v = this.attackQueued; this.attackQueued = false; return v; }
+  consumeBlink() { const v = this.blinkQueued; this.blinkQueued = false; return v; }
+  consumePotion() { const v = this.potionQueued; this.potionQueued = false; return v; }
+  // движение блокируется во время диалога
+  setLocked(lock) {
+    this._locked = lock;
+    if (lock) { this.move.x = 0; this.move.y = 0; this.mag = 0; }
+  }
+  get locked() { return !!this._locked; }
   takeCamDelta() {
     const d = { x: this.camDelta.x, y: this.camDelta.y };
     this.camDelta.x = 0; this.camDelta.y = 0;
@@ -80694,6 +80806,7 @@ class Player {
     this.speed2d = 0;         // для анимации и звука шагов
     this.onGround = true;
     this.walkPhase = 0;
+    this.attackT = 0;
     scene.add(group);
   }
 
@@ -80792,8 +80905,17 @@ class Player {
 
     // посох в правой руке покачивается, звезда мерцает
     r.staff.rotation.z = -0.15 + swing * 0.25;
+    r.staff.rotation.x = 0;
     r.staffStar.material.emissiveIntensity = 1.2 + Math.sin(t * 2.6) * 0.5;
     r.staffStar.rotation.y = t * 1.4;
+
+    // поза атаки: рука и посох вперёд
+    if (this.attackT > 0) {
+      this.attackT -= dt;
+      r.armR.rotation.x = -1.7;
+      r.staff.rotation.x = -1.15;
+      r.staffStar.material.emissiveIntensity = 3;
+    }
 
     // тень-блоб
     if (this.blob) {
@@ -81255,7 +81377,7 @@ function createWorld(scene, renderer) {
   const world = {
     colliders, lanterns, dayT: 0.56, nightF: 1, firefliesCollected: 0,
     onCollect: null, onLantern: null,
-    burst,
+    burst, glowTex: glow,
   };
 
   world.lightLantern = (i) => {
@@ -81364,6 +81486,769 @@ function createWorld(scene, renderer) {
   };
 
   return world;
+}
+
+
+// Сущности M2: Дэн (NPC), лисёнок Искра, Мгла (враги), лунные травы, костёр и котелок.
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, metalness: 0, ...opts });
+
+/* ═══════════ Дэн — странник-хранитель ═══════════ */
+function buildDen() {
+  const g = new THREE.Group();
+  const coat = mat(0x3a5a4a), pants = mat(0x33283f), skin = mat(0xffd9b8);
+  const hair = mat(0x5a4632), scarf = mat(0xc9744a);
+
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(.09, .11, .5, 6), pants);
+  legs.position.y = .25;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, .55, 8), coat);
+  body.position.y = .77;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.14, 12, 10), skin);
+  head.position.y = 1.2;
+  const hairM = new THREE.Mesh(new THREE.SphereGeometry(.15, 10, 8, 0, Math.PI * 2, 0, Math.PI * .6), hair);
+  hairM.position.y = 1.21;
+  const sc = new THREE.Mesh(new THREE.TorusGeometry(.13, .045, 6, 12), scarf);
+  sc.rotation.x = Math.PI / 2;
+  sc.position.y = .99;
+  // фонарь в руке
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(.04, .045, .4, 6), coat);
+  arm.position.set(.24, .9, .08);
+  arm.rotation.z = -.5;
+  const lanternGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: null, color: 0xffd9a0, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  lanternGlow.scale.setScalar(.9);
+  lanternGlow.position.set(.34, 1.06, .12);
+  const lampBox = new THREE.Mesh(new THREE.OctahedronGeometry(.07),
+    mat(0xffe9a0, { emissive: 0xffd27f, emissiveIntensity: 1.6 }));
+  lampBox.position.copy(lanternGlow.position);
+
+  g.add(legs, body, head, hairM, sc, arm, lampBox, lanternGlow);
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return { group: g, glow: lanternGlow, lamp: lampBox };
+}
+
+/* ═══════════ Искра — звёздный лисёнок ═══════════ */
+function buildFox() {
+  const g = new THREE.Group();
+  const fur = mat(0x9aa2c8), furDark = mat(0x6b739e), white = mat(0xf2eeff);
+  const starMat = mat(0xffe9a0, { emissive: 0xffd27f, emissiveIntensity: 1.4 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.16, 10, 8), fur);
+  body.scale.set(1.35, .9, .95);
+  body.position.y = .17;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.1, 10, 8), fur);
+  head.position.set(.2, .24, 0);
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(.045, .1, 6), white);
+  snout.rotation.z = -Math.PI / 2;
+  snout.position.set(.3, .22, 0);
+  const earL = new THREE.Mesh(new THREE.ConeGeometry(.032, .09, 4), furDark);
+  earL.position.set(.17, .34, .05);
+  const earR = earL.clone(); earR.position.z = -.05;
+  const tail = [];
+  for (let i = 0; i < 3; i++) {
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(.055 - i * .012, 8, 6), i === 2 ? white : furDark);
+    seg.position.set(-.2 - i * .07, .2 + Math.sin(i * .5) * .03, 0);
+    tail.push(seg);
+  }
+  const legs = [];
+  for (const [x, z] of [[.1, .07], [.1, -.07], [-.1, .07], [-.1, -.07]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.022, .026, .1, 5), furDark);
+    leg.position.set(x, .05, z);
+    legs.push(leg);
+  }
+  const starMark = new THREE.Mesh(new THREE.OctahedronGeometry(.02), starMat);
+  starMark.position.set(.2, .31, .08);
+
+  g.add(body, head, snout, earL, earR, starMark, ...tail, ...legs);
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return { group: g, tail, legs, head, starMark };
+}
+
+class Fox {
+  constructor(scene, glowTexture) {
+    const { group, tail, legs, head, starMark } = buildFox();
+    this.obj = group; this.tail = tail; this.legs = legs; this.head = head; this.starMark = starMark;
+    this.obj.visible = false;
+    this.speed = 0;
+    this.hopT = 0;
+    scene.add(group);
+  }
+  show(pos) {
+    this.obj.visible = true;
+    this.obj.position.copy(pos).add(new THREE.Vector3(1, 0, 1));
+  }
+  update(dt, elapsed, target) {
+    if (!this.obj.visible) return;
+    const p = this.obj.position;
+    const dir = new THREE.Vector3().subVectors(target, p);
+    dir.y = 0;
+    const dist = dir.length();
+    const want = dist > 2.2 ? Math.min((dist - 2) * 1.5, 5.2) : 0;
+    this.speed += (want - this.speed) * Math.min(1, 6 * dt);
+    if (dist > 2 && this.speed > .1) {
+      dir.normalize();
+      p.addScaledVector(dir, this.speed * dt);
+      this.obj.rotation.y = Math.atan2(dir.x, dir.z);
+    }
+    // бег: подпрыгивание и хвост
+    this.hopT += dt * (3 + this.speed * 2.4);
+    const hop = Math.abs(Math.sin(this.hopT)) * .07 * Math.min(this.speed / 4, 1);
+    p.y = hop;
+    this.tail.forEach((seg, i) => {
+      seg.position.y = .2 + Math.sin(this.hopT * 1.4 + i) * .035 + i * .008;
+    });
+    this.legs.forEach((leg, i) => {
+      leg.rotation.x = Math.sin(this.hopT + (i % 2) * Math.PI) * .7 * Math.min(this.speed / 4, 1);
+    });
+    this.starMark.material.emissiveIntensity = 1.2 + Math.sin(elapsed * 3) * .5;
+    this.head.rotation.z = Math.sin(elapsed * 1.2) * .06;
+  }
+}
+
+/* ═══════════ Мгла — враги ═══════════ */
+function buildMist(r, elite) {
+  const g = new THREE.Group();
+  const dark = mat(0x1b1430, { roughness: 1 });
+  const eye = mat(0xb98bff, { emissive: 0x9b5bee, emissiveIntensity: 2 });
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), dark);
+  body.scale.y = .72;
+  body.position.y = r * .62;
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(r * .13, 6, 5), eye);
+  eyeL.position.set(r * .28, r * .82, r * .5);
+  const eyeR = eyeL.clone(); eyeR.position.x = -r * .28;
+  // рваные «крылья» мглы
+  for (let i = 0; i < 3; i++) {
+    const wisp = new THREE.Mesh(new THREE.ConeGeometry(r * .3, r * .9, 4), dark);
+    wisp.position.set((i - 1) * r * .5, r * 1.1, -r * .3);
+    wisp.rotation.z = (i - 1) * .5;
+    g.add(wisp);
+  }
+  g.add(body, eyeL, eyeR);
+  return { group: g, body, eyeL, eyeR };
+}
+
+/* ═══════════ Лунная трава ═══════════ */
+function buildHerb() {
+  const g = new THREE.Group();
+  const leaf = mat(0x3f5a6b);
+  const bloom = mat(0xc9e8ff, { emissive: 0x9bd4ff, emissiveIntensity: 1.3 });
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    color: 0x9bd4ff, transparent: true, opacity: .75, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  glow.scale.setScalar(.85);
+  glow.position.y = .45;
+  for (let i = 0; i < 3; i++) {
+    const st = new THREE.Mesh(new THREE.ConeGeometry(.04, .42, 4), leaf);
+    st.position.set((Math.random() - .5) * .16, .21, (Math.random() - .5) * .16);
+    st.rotation.z = (Math.random() - .5) * .5;
+    g.add(st);
+  }
+  const flower = new THREE.Mesh(new THREE.OctahedronGeometry(.09), bloom);
+  flower.position.y = .44;
+  g.add(flower, glow);
+  return { group: g, flower, glow };
+}
+
+/* ═══════════ Костёр Дэна с котелком ═══════════ */
+function buildCamp(scene, glowTexture, colliders) {
+  const camp = new THREE.Group();
+  const x = -8, z = 3;
+  camp.position.set(x, 0, z);
+
+  // камни очага
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const st = new THREE.Mesh(new THREE.DodecahedronGeometry(.14 + Math.random() * .06), mat(0x55506b));
+    st.position.set(Math.cos(a) * .62, .08, Math.sin(a) * .62);
+    st.rotation.set(Math.random(), Math.random(), 0);
+    camp.add(st);
+  }
+  // дрова и огонь
+  for (const r of [.4, -.5]) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, .7, 5), mat(0x5a4030));
+    log.rotation.z = Math.PI / 2 + r * .2;
+    log.position.y = .07;
+    camp.add(log);
+  }
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTexture, color: 0xffb054, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  flame.scale.setScalar(1.5);
+  flame.position.y = .5;
+  const flameCore = new THREE.Mesh(new THREE.ConeGeometry(.16, .42, 5),
+    mat(0xffd27f, { emissive: 0xff9a3f, emissiveIntensity: 2 }));
+  flameCore.position.y = .3;
+  camp.add(flame, flameCore);
+
+  // котелок
+  const cauldron = new THREE.Mesh(new THREE.SphereGeometry(.3, 10, 8, 0, Math.PI * 2, 0, Math.PI * .55), mat(0x2e2840));
+  cauldron.rotation.x = Math.PI;
+  cauldron.position.set(1.1, .32, .3);
+  cauldron.scale.y = .8;
+  const broth = new THREE.Mesh(new THREE.CircleGeometry(.26, 12),
+    mat(0x9bd4ff, { emissive: 0x6fb8ef, emissiveIntensity: .9 }));
+  broth.rotation.x = -Math.PI / 2;
+  broth.position.set(1.1, .36, .3);
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(.26, .3, .1, 8), mat(0x2e2840));
+  legs.position.set(1.1, .08, .3);
+  camp.add(cauldron, broth, legs);
+
+  // тюк с травами
+  const bundle = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, .5, 6), mat(0x8a6a3c));
+  bundle.rotation.z = Math.PI / 2.4;
+  bundle.position.set(-.9, .18, .7);
+  camp.add(bundle);
+
+  scene.add(camp);
+  colliders.push({ x: x + 1.1, z: z + .3, r: .42 }); // котелок
+  colliders.push({ x: x - .9, z: z + .7, r: .3 });   // тюк
+  return { group: camp, x, z, flame, flameCore, broth };
+}
+
+
+
+// Боевая система M2: звёздные снаряды, Блик-телепорт, HP героини, волны Мглы.
+const ATTACK_CD = .42;
+const BLINK_CD = 2.2;
+const BLINK_DIST = 4.6;
+const BLINK_IFRAMES = .45;
+const MAX_HP = 5;
+
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...opts });
+
+class Combat {
+  constructor(scene, world, audio, glowTexture) {
+    this.scene = scene;
+    this.world = world;
+    this.audio = audio;
+    this.glowTex = glowTexture;
+
+    this.hp = MAX_HP;
+    this.maxHp = MAX_HP;
+    this.attackCd = 0;
+    this.blinkCd = 0;
+    this.iframes = 0;
+    this.hurtCooldown = 0;
+    this.dead = false;
+
+    this.projectiles = [];
+    this.projPool = [];
+    for (let i = 0; i < 16; i++) {
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: glowTexture, color: 0xffe9a0, transparent: true, opacity: 1,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      spr.visible = false;
+      scene.add(spr);
+      this.projPool.push(spr);
+    }
+
+    this.enemies = [];
+    this.waveActive = false;
+    this.waveQueue = [];
+    this.spawnPoints = [
+      new THREE.Vector3(0, 0, -18), new THREE.Vector3(16, 0, -6),
+      new THREE.Vector3(-16, 0, -6), new THREE.Vector3(8, 0, 14), new THREE.Vector3(-8, 0, 14),
+    ];
+    this.onHpChange = null;
+    this.onWaveCleared = null;
+    this.onEnemyKilled = null;
+    this.hurtFx = document.getElementById("hurtFx");
+  }
+
+  /* ── UI ── */
+  refreshHp() {
+    const bar = document.getElementById("hpBar");
+    bar.innerHTML = "";
+    for (let i = 0; i < this.maxHp; i++) {
+      const s = document.createElement("span");
+      s.className = "hp" + (i < this.hp ? "" : " off");
+      s.textContent = "✦";
+      bar.appendChild(s);
+    }
+    this.onHpChange && this.onHpChange(this.hp);
+  }
+
+  heal(n) {
+    this.hp = Math.min(this.maxHp, this.hp + n);
+    this.refreshHp();
+  }
+
+  /* ── атака ── */
+  tryAttack(fromPos, aimDir) {
+    if (this.attackCd > 0 || this.dead) return false;
+    this.attackCd = ATTACK_CD;
+    const spr = this.projPool.find(p => !p.visible);
+    if (!spr) return true;
+    spr.visible = true;
+    spr.scale.setScalar(.6);
+    spr.material.opacity = 1;
+    spr.position.copy(fromPos).add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(aimDir, .6);
+    this.projectiles.push({
+      spr, dir: aimDir.clone().normalize(), speed: 15, life: 1.15,
+    });
+    this.audio.shoot();
+    return true;
+  }
+
+  /* ── Блик ── */
+  tryBlink(player) {
+    if (this.blinkCd > 0 || this.dead) return false;
+    this.blinkCd = BLINK_CD;
+    this.iframes = BLINK_IFRAMES;
+    const from = player.obj.position.clone();
+    const dir = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+    const to = from.clone().addScaledVector(dir, BLINK_DIST);
+    // мир и коллайдеры
+    const R = 55, d = Math.hypot(to.x, to.z);
+    if (d > R) to.multiplyScalar(R / d);
+    for (const c of this.world.colliders) {
+      const dx = to.x - c.x, dz = to.z - c.z;
+      const dist = Math.hypot(dx, dz), min = c.r + .35;
+      if (dist < min && dist > .001) {
+        to.x = c.x + dx / dist * min;
+        to.z = c.z + dz / dist * min;
+      }
+    }
+    // ручей: Блик не пускает в воду вне моста
+    if (to.z < -27.2 && to.z > -34.4 && Math.abs(to.x) > 1.5) to.copy(from).addScaledVector(dir, 2);
+    player.obj.position.copy(to);
+    // след из искр
+    for (let i = 0; i <= 5; i++) {
+      const p = from.clone().lerp(to, i / 5);
+      this.world.burst(p, 0xc9b8ff, 1);
+    }
+    this.audio.blink();
+    return true;
+  }
+
+  /* ── враги ── */
+  spawnEnemy(pos, elite = false) {
+    const r = elite ? .55 : .38;
+    const { group, body, eyeL, eyeR } = buildMist(r, elite);
+    group.position.copy(pos);
+    this.scene.add(group);
+    this.enemies.push({
+      obj: group, body, eyes: [eyeL, eyeR],
+      r, hp: elite ? 7 : 3, maxHp: elite ? 7 : 3,
+      speed: elite ? 1.7 : 2.3 + Math.random() * .5,
+      elite, seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
+    });
+  }
+
+  startWave(spawns) {
+    // spawns: [{delay, pos, elite}]
+    this.waveQueue = spawns.map(s => ({ ...s, t: s.delay }));
+    this.waveActive = true;
+  }
+
+  aliveInWave() { return this.enemies.length + this.waveQueue.length; }
+
+  damageEnemy(e, n) {
+    e.hp -= n;
+    e.hitFlash = .18;
+    this.audio.hitEnemy();
+    if (e.hp <= 0) {
+      this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, .5, 0)), 0x9b5bee, 12);
+      // трофеи
+      const drop = e.elite ? 4 : 1 + (Math.random() < .5 ? 1 : 0);
+      this.world.firefliesCollected += drop;
+      this.world.onCollect && this.world.onCollect(this.world.firefliesCollected);
+      this.scene.remove(e.obj);
+      this.enemies.splice(this.enemies.indexOf(e), 1);
+      this.audio.enemyDie();
+      this.onEnemyKilled && this.onEnemyKilled(e);
+    }
+  }
+
+  hurtPlayer(n, fromPos) {
+    if (this.iframes > 0 || this.dead) return;
+    this.hp -= n;
+    this.iframes = .9;
+    this.hurtCooldown = .15;
+    this.refreshHp();
+    this.audio.hurt();
+    this.hurtFx.classList.add("on");
+    setTimeout(() => this.hurtFx.classList.remove("on"), 220);
+    if (this.hp <= 0) {
+      this.dead = true;
+      this.onDeath && this.onDeath();
+    }
+    return true;
+  }
+
+  respawn(pos) {
+    this.hp = this.maxHp;
+    this.dead = false;
+    this.iframes = 1.5;
+    this.refreshHp();
+  }
+
+  /* ── апдейт ── */
+  update(dt, elapsed, playerPos, input, player) {
+    this.attackCd = Math.max(0, this.attackCd - dt);
+    this.blinkCd = Math.max(0, this.blinkCd - dt);
+    this.iframes = Math.max(0, this.iframes - dt);
+    input.setCooldown("attackBtn", 1 - this.attackCd / ATTACK_CD);
+    input.setCooldown("blinkBtn", 1 - this.blinkCd / BLINK_CD);
+
+    // снаряды
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const pr = this.projectiles[i];
+      pr.life -= dt;
+      pr.spr.position.addScaledVector(pr.dir, pr.speed * dt);
+      let hit = false;
+      for (const e of this.enemies) {
+        const dx = pr.spr.position.x - e.obj.position.x;
+        const dz = pr.spr.position.z - e.obj.position.z;
+        const dy = pr.spr.position.y - (e.obj.position.y + e.r);
+        if (dx * dx + dz * dz + dy * dy < (e.r + .45) ** 2) {
+          this.damageEnemy(e, 1);
+          hit = true;
+          break;
+        }
+      }
+      if (hit || pr.life <= 0) {
+        if (hit) this.world.burst(pr.spr.position.clone(), 0xffe9a0, 3);
+        pr.spr.visible = false;
+        this.projectiles.splice(i, 1);
+      }
+    }
+
+    // спавн из очереди волны
+    if (this.waveActive) {
+      for (let i = this.waveQueue.length - 1; i >= 0; i--) {
+        const s = this.waveQueue[i];
+        s.t -= dt;
+        if (s.t <= 0) {
+          this.spawnEnemy(s.pos, !!s.elite);
+          this.world.burst(s.pos.clone().add(new THREE.Vector3(0, .6, 0)), 0x9b5bee, 8);
+          this.waveQueue.splice(i, 1);
+        }
+      }
+      if (!this.waveQueue.length && !this.enemies.length) {
+        this.waveActive = false;
+        this.onWaveCleared && this.onWaveCleared();
+      }
+    }
+
+    // враги: ИИ, анимация, контактный урон
+    for (const e of this.enemies) {
+      const dir = new THREE.Vector3().subVectors(playerPos, e.obj.position);
+      dir.y = 0;
+      const dist = dir.length();
+      dir.normalize();
+      e.obj.position.addScaledVector(dir, e.speed * dt);
+      e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+      // не заходят в дома/деревья
+      for (const c of this.world.colliders) {
+        const dx = e.obj.position.x - c.x, dz = e.obj.position.z - c.z;
+        const dd = Math.hypot(dx, dz), min = c.r + e.r * .6;
+        if (dd < min && dd > .001) {
+          e.obj.position.x = c.x + dx / dd * min;
+          e.obj.position.z = c.z + dz / dd * min;
+        }
+      }
+      // дыхание мглы
+      const br = 1 + Math.sin(elapsed * 3 + e.seed) * .08;
+      e.body.scale.set(br, .72 * (2 - br), br);
+      e.eyes.forEach(ey => ey.material.emissiveIntensity = 1.6 + Math.sin(elapsed * 7 + e.seed) * .7);
+      if (e.hitFlash > 0) {
+        e.hitFlash -= dt;
+        e.body.material.color.setHex(0x6b4a8a);
+      } else {
+        e.body.material.color.setHex(0x1b1430);
+      }
+      // касание — урон героине
+      e.touchCd = Math.max(0, e.touchCd - dt);
+      if (dist < e.r + .55 && e.touchCd <= 0 && !this.dead) {
+        e.touchCd = 1.1;
+        this.hurtPlayer(1, e.obj.position);
+        // мягкий отброс героини
+        const away = new THREE.Vector3().subVectors(playerPos, e.obj.position).setY(0).normalize();
+        player.obj.position.addScaledVector(away, .8);
+      }
+    }
+  }
+}
+
+// Глава 1 «Пробуждение Гавани»: цепочка заданий, диалоги, виджет цели.
+
+const $ = id => document.getElementById(id);
+
+class Dialog {
+  constructor(onLock) {
+    this.el = $("dialog");
+    this.lines = [];
+    this.idx = 0;
+    this.onDone = null;
+    this.active = false;
+    this._onLock = onLock;
+    this.el.addEventListener("pointerdown", () => this.advance());
+  }
+  open(who, avatar, lines, onDone) {
+    this.lines = lines;
+    this.idx = 0;
+    this.onDone = onDone || null;
+    this.active = true;
+    $("dlgWho").textContent = who;
+    $("dlgAvatar").textContent = avatar;
+    $("dlgLine").textContent = this.lines[0];
+    this.el.classList.add("open");
+    this._onLock(true);
+  }
+  advance() {
+    if (!this.active) return;
+    this.idx++;
+    if (this.idx >= this.lines.length) {
+      this.active = false;
+      this.el.classList.remove("open");
+      this._onLock(false);
+      const cb = this.onDone;
+      this.onDone = null;
+      cb && cb();
+    } else {
+      $("dlgLine").textContent = this.lines[this.idx];
+      window.__audioBlip && window.__audioBlip();
+    }
+  }
+}
+
+class Story {
+  constructor(deps) {
+    Object.assign(this, deps); // scene, world, player, combat, audio, fox, save, persist, camp
+    this.dialog = new Dialog(lock => deps.input.setLocked(lock));
+    window.__audioBlip = () => this.audio.blip();
+    this.step = this.save.storyStep ?? 0;
+    // защита от застревания на старых сейвах
+    if (this.step === 1 && (this.save.questHerbs ?? 0) >= 3) this.step = 2;
+    this.potions = this.save.potions ?? 0;
+    this.herbCarry = this.save.herbCarry ?? 0;
+    this.questHerbs = this.save.questHerbs ?? 0; // травы, сданные в квест
+    this.blinkUnlocked = this.save.blinkUnlocked ?? false;
+    this.potionRecipe = this.save.potionRecipe ?? false;
+    this.blinkBtn = $("blinkBtn");
+    this.blinkBtn.style.display = this.blinkUnlocked ? "grid" : "none";
+    this.onPotions = null;
+
+    this._herbs = [];
+    this._spawnHerbs();
+
+    this._applyStep(true);
+    this.refreshPotion();
+  }
+
+  /* ── цель ── */
+  objective(text, flash = true) {
+    const el = $("objective");
+    el.textContent = text;
+    if (flash) {
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+    }
+  }
+
+  /* ── травы ── */
+  _spawnHerbs() {
+    const spots = [[3, -9], [-4, -10], [7, -2], [-7, -3], [0, 8], [6, 7], [-6, 7], [3, -22], [-3, -22], [8, -14]];
+    this._herbSpots = spots;
+  }
+
+  ensureHerbMeshes(makeHerb) {
+    // создаётся в main после сборки мира
+    this._herbMeshes = this._herbSpots.map(([x, z]) => {
+      const h = makeHerb();
+      h.group.position.set(x, 0, z);
+      this.scene.add(h.group);
+      return { x, z, ...h, alive: true, respawnAt: 0 };
+    });
+  }
+
+  updateHerbs(dt, elapsed, playerPos) {
+    if (!this._herbMeshes) return;
+    for (const h of this._herbMeshes) {
+      if (!h.alive) {
+        if (elapsed > h.respawnAt) {
+          h.alive = true;
+          h.group.visible = true;
+        }
+        continue;
+      }
+      h.flower.rotation.y = elapsed * .8 + h.x;
+      h.glow.material.opacity = .55 + Math.sin(elapsed * 2 + h.z) * .25;
+      if (playerPos) {
+        const d = Math.hypot(playerPos.x - h.x, playerPos.z - h.z);
+        if (d < 1.25) {
+          h.alive = false;
+          h.group.visible = false;
+          h.respawnAt = elapsed + 50;
+          this.world.burst(new THREE.Vector3(h.x, .5, h.z), 0x9bd4ff, 6);
+          this.audio.herb();
+          if (this.step === 1 && this.questHerbs < 3) {
+            this.questHerbs++;
+            this.save.questHerbs = this.questHerbs;
+            if (this.questHerbs >= 3) this.nextStep();
+            else this.objective(`Лунная трава ${this.questHerbs}/3 🌙`);
+          } else {
+            this.herbCarry++;
+            this.save.herbCarry = this.herbCarry;
+            this.objective(`Лунная трава ${this.questHerbs}/3 🌙 · в сумке: ${this.herbCarry}`, false);
+          }
+          this.persist();
+        }
+      }
+    }
+  }
+
+  /* ── шаги главы ── */
+  _applyStep(initial = false) {
+    switch (this.step) {
+      case 0:
+        this.objective("Найди Дэна у костра 🔥", !initial);
+        break;
+      case 1:
+        this.objective(`Лунная трава ${this.questHerbs}/3 🌙`, !initial);
+        break;
+      case 2:
+        this.objective("Свари зелье у котелка 🍲", !initial);
+        break;
+      case 3:
+        this.objective("Отбей нападение Мглы ⚔️", !initial);
+        break;
+      case 4:
+        this.objective("Поговори с Дэном 🧑", !initial);
+        break;
+      case 5:
+        this.objective("Глава 1 завершена ✨ Гавань дышит", !initial);
+        break;
+    }
+    this.save.storyStep = this.step;
+  }
+
+  nextStep() {
+    this.step++;
+    this._applyStep();
+    this.persist();
+  }
+
+  /* ── взаимодействия ── */
+  talkToDen() {
+    if (this.dialog.active) return;
+    const D = this.dialog;
+    if (this.step === 0) {
+      D.open("Дэн", "🧑", [
+        "Ты проснулась, Юляся. Я — Дэн, хранитель этой Гавани.",
+        "Звёзды гаснут. Небо тускнеет с каждой ночью — так начинается Тишь.",
+        "Мгла уже принюхивается к свету наших фонарей. Нужен щит — зелье ночного зрения.",
+        "Собери три лунные травы 🌙 — они светятся голубым вокруг площади. Котелок уже кипит.",
+      ], () => this.nextStep());
+    } else if (this.step === 4) {
+      D.open("Дэн", "🧑", [
+        "Ты сделала это… Гавань снова дышит.",
+        "Это была лишь разведка Тиши. Она вернётся — и не одна.",
+        "Погоди… кто это? Лисёнок. Он шёл за тобой от самого леса.",
+        "Кажется, он выбрал тебя. Его зовут Искра — пусть подсвечивает тебе путь. 🐾",
+      ], () => {
+        this.fox.show(this.player.obj.position);
+        this.world.burst(this.player.obj.position.clone().add(new THREE.Vector3(1, .5, 1)), 0xffe9a0, 10);
+        this.audio.questDone();
+        this.nextStep();
+        toast("Искра присоединился к тебе! 🐾", 3600);
+        if (!this.potionRecipe) {
+          this.potionRecipe = true;
+          this.save.potionRecipe = true;
+          setTimeout(() => toast("Рецепт «Зелье росы»: 2 лунные травы → лечение 🧪", 4200), 1800);
+        }
+        this.persist();
+      });
+    } else {
+      D.open("Дэн", "🧑", ["Отдыхай, хранительница. Скоро откроются новые пути."]);
+    }
+  }
+
+  useCauldron() {
+    if (this.dialog.active) return;
+    if (this.step === 2 && this.questHerbs >= 3) {
+      this.audio.brew();
+      this.world.burst(new THREE.Vector3(this.camp.x + 1.1, .8, this.camp.z + .3), 0x9bd4ff, 12);
+      this.dialog.open("Дэн", "🧑", [
+        "Готово. Пей… Чувствуешь? Теперь ты видишь Мглу насквозь.",
+        "Слышишь шёпот? Они уже идут. Возьми — осколок падшей звезды. 💫",
+        "✦ — звёздные снаряды. 💫 — Блик: рывок сквозь пространство. Мгла тебя не догонит.",
+      ], () => this._startWave());
+      return;
+    }
+    if (this.potionRecipe) {
+      if (this.herbCarry >= 2) {
+        if (this.potions >= 3) { toast("Зелья больше не поместятся 🧪"); return; }
+        this.herbCarry -= 2;
+        this.potions++;
+        this.save.herbCarry = this.herbCarry;
+        this.save.potions = this.potions;
+        this.audio.brew();
+        this.world.burst(new THREE.Vector3(this.camp.x + 1.1, .8, this.camp.z + .3), 0xff9ed2, 10);
+        toast("Сварено зелье росы 🧪", 2200);
+        this.refreshPotion();
+        this.persist();
+      } else {
+        toast(`Нужно 2 лунные травы 🌙 (есть ${this.herbCarry})`);
+      }
+      return;
+    }
+    if (this.step < 2) toast("Сначала — разговор и травы. Дэн у костра 🧑");
+    else toast("Нужно 3 лунные травы 🌙");
+  }
+
+  _startWave() {
+    this.blinkUnlocked = true;
+    this.save.blinkUnlocked = true;
+    this.blinkBtn.style.display = "grid";
+    this.world.burst(this.player.obj.position.clone().add(new THREE.Vector3(0, 1.5, 0)), 0xf5c86b, 14);
+    const spawns = [];
+    const P = this.combat.spawnPoints;
+    for (let i = 0; i < 6; i++) {
+      spawns.push({ delay: .8 + i * 1.5, pos: P[i % P.length].clone() });
+    }
+    spawns.push({ delay: 9, pos: P[0].clone(), elite: true });
+    this.combat.startWave(spawns);
+    this.nextStep();
+    toast("Мгла атакует! ✦ стреляй, 💫 рывайся!", 4200);
+  }
+
+  waveCleared() {
+    this.audio.questDone();
+    this.nextStep();
+    toast("Мгла отступила… Поговори с Дэном 🧑", 3600);
+  }
+
+  refreshPotion() {
+    $("potionQty").textContent = this.potions;
+    this.onPotions && this.onPotions(this.potions);
+  }
+
+  usePotion() {
+    if (this.potions <= 0) { toast("Нет зелий — свари у котелка 🍲"); return false; }
+    if (this.combat.hp >= this.combat.maxHp) { toast("Сердце полно ✦"); return false; }
+    this.potions--;
+    this.save.potions = this.potions;
+    this.combat.heal(2);
+    this.audio.brew();
+    this.refreshPotion();
+    this.persist();
+    return true;
+  }
+}
+
+let toastTimer = null;
+function toast(msg, ms = 2600) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), ms);
 }
 
 // Генеративная музыка и звуки на Web Audio: тёплые пэды, челеста-мелодия,
@@ -81521,6 +82406,110 @@ class AudioEngine {
     arp.forEach((f, i) => this._note(f, t0 + i * .09, 1.6, { gain: .09, att: .006, bus: this.sfxBus, pan: (i % 2 ? .3 : -.3) }));
   }
 
+  shoot() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(760, t0);
+    o.frequency.exponentialRampToValueAtTime(1480, t0 + .1);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.05, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .16);
+    o.connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .2);
+    this._note(2960, t0, .1, { gain: .014, att: .004, bus: this.sfxBus });
+  }
+
+  blink() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(1100, t0);
+    o.frequency.exponentialRampToValueAtTime(320, t0 + .22);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.07, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .26);
+    o.connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .3);
+  }
+
+  hitEnemy() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const b = ctx.createBuffer(1, 1600, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.6);
+    const src = ctx.createBufferSource(); src.buffer = b;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 900;
+    const g = ctx.createGain(); g.gain.value = .16;
+    src.connect(f).connect(g).connect(this.sfxBus);
+    src.start(t0);
+    this._note(196, t0, .12, { type: "triangle", gain: .07, att: .004, bus: this.sfxBus });
+  }
+
+  enemyDie() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = "sawtooth";
+    o.frequency.setValueAtTime(300, t0);
+    o.frequency.exponentialRampToValueAtTime(60, t0 + .3);
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 700;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.08, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .34);
+    o.connect(f).connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .4);
+    this._note(1174, t0 + .05, .5, { gain: .03, att: .005, bus: this.sfxBus });
+  }
+
+  hurt() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = "triangle";
+    o.frequency.setValueAtTime(180, t0);
+    o.frequency.exponentialRampToValueAtTime(70, t0 + .25);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.14, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .3);
+    o.connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .35);
+  }
+
+  herb() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const b = ctx.createBuffer(1, 700, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+    const src = ctx.createBufferSource(); src.buffer = b;
+    const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 1800;
+    const g = ctx.createGain(); g.gain.value = .09;
+    src.connect(f).connect(g).connect(this.sfxBus);
+    src.start(t0);
+    this._note(1568, t0 + .03, .35, { gain: .03, att: .005, bus: this.sfxBus });
+  }
+
+  brew() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) =>
+      this._note(f, t0 + i * .13, .9, { gain: .07, att: .008, bus: this.sfxBus, pan: (i % 2 ? .25 : -.25) }));
+  }
+
+  questDone() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    [659.3, 784, 987.8, 1318.5, 1568].forEach((f, i) =>
+      this._note(f, t0 + i * .1, 1.8, { gain: .08, att: .008, bus: this.sfxBus, pan: (i % 2 ? .3 : -.3) }));
+  }
+
+  blip() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    this._note(880, t0, .12, { gain: .04, att: .004, bus: this.sfxBus });
+  }
+
   /* ── вызывать каждый кадр ── */
   update(dt, elapsed, speed2d, onGround, nightF) {
     if (!this.ctx || this.muted) return;
@@ -81540,11 +82529,16 @@ class AudioEngine {
 
 
 
+
+
+
 /* ── сейвы ── */
 const SAVE_KEY = "asteria_save_v1";
 const save = {
   fireflies: 0, lanterns: [], pos: { x: 0, y: 0, z: 4 }, yaw: 0,
   dayT: 0.56, muted: false,
+  storyStep: 0, questHerbs: 0, herbCarry: 0, potions: 0,
+  blinkUnlocked: false, potionRecipe: false,
 };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
@@ -81596,19 +82590,44 @@ const input = new Input(canvas);
 const audio = new AudioEngine();
 audio.muted = save.muted;
 
+/* ── M2: костёл Дэна, бой, глава ── */
+const camp = buildCamp(scene, world.glowTex, world.colliders);
+const den = buildDen();
+den.group.position.set(camp.x - 1.2, 0, camp.z - .8);
+den.group.rotation.y = 2.6;
+scene.add(den.group);
+
+const fox = new Fox(scene);
+
+const combat = new Combat(scene, world, audio, world.glowTex);
+combat.refreshHp();
+combat.onDeath = () => {
+  toast("Мгла поглотила тебя… но свет возвращает тебя 💫", 3200);
+  setTimeout(() => {
+    player.obj.position.set(camp.x + .8, 0, camp.z + 1.6);
+    combat.respawn();
+  }, 1400);
+};
+combat.onWaveCleared = () => story.waveCleared();
+
+const story = new Story({
+  scene, world, player, combat, audio, fox, save, persist, input, camp,
+});
+story.ensureHerbMeshes(buildHerb);
+
 /* ── камера-риг ── */
 const cam = { yaw: Math.PI, pitch: .42, dist: 7.2, cur: new THREE.Vector3(0, 5, 10) };
 
 /* ── UI ── */
 const $ = id => document.getElementById(id);
-const startScreen = $("start"), hud = $("hud"), toast = $("toast");
+const startScreen = $("start"), hud = $("hud"), toastEl = $("toast");
 const interactBtn = $("interactBtn"), soundBtn = $("soundBtn");
 let toastTimer = null;
 function showToast(msg, ms = 2600) {
-  toast.textContent = msg;
-  toast.classList.add("show");
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), ms);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
 }
 function updateHUD() {
   $("ffCount").textContent = world.firefliesCollected;
@@ -81648,27 +82667,60 @@ startScreen.addEventListener("pointerdown", () => {
   setTimeout(() => showToast("Собирай ✨ и зажигай 🏮 фонари", 3600), 900);
 }, { once: false });
 
-/* ── взаимодействие с фонарями ── */
-let nearLantern = -1;
+/* ── взаимодействие: фонари, Дэн, котелок ── */
+let nearAct = null;
+const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲" };
 function checkInteract() {
-  let best = -1, bestD = 2.3;
+  if (story.dialog.active) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
+  let best = null, bestD = 2.4;
   world.lanterns.forEach((L, i) => {
     if (L.lit) return;
     const d = Math.hypot(player.position.x - L.x, player.position.z - L.z);
-    if (d < bestD) { bestD = d; best = i; }
+    if (d < bestD) { bestD = d; best = { type: "lantern", i }; }
   });
-  if (best !== nearLantern) {
-    nearLantern = best;
-    interactBtn.classList.toggle("show", best >= 0);
+  {
+    const d = Math.hypot(player.position.x - den.group.position.x, player.position.z - den.group.position.z);
+    if (d < bestD) { bestD = d; best = { type: "den" }; }
   }
-  if (input.consumeInteract() && nearLantern >= 0) {
-    if (world.lightLantern(nearLantern)) {
-      save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
-      world.onLantern(nearLantern);
+  {
+    const d = Math.hypot(player.position.x - (camp.x + 1.1), player.position.z - (camp.z + .3));
+    if (d < bestD) { bestD = d; best = { type: "cauldron" }; }
+  }
+  if ((best && best.type) !== (nearAct && nearAct.type)) {
+    nearAct = best;
+    if (best) { interactBtn.textContent = ACT_EMOJI[best.type]; interactBtn.classList.add("show"); }
+    else interactBtn.classList.remove("show");
+  }
+  if (input.consumeInteract() && nearAct) {
+    if (nearAct.type === "lantern") {
+      if (world.lightLantern(nearAct.i)) {
+        save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
+        world.onLantern(nearAct.i);
+      }
+    } else if (nearAct.type === "den") {
+      story.talkToDen();
+    } else if (nearAct.type === "cauldron") {
+      story.useCauldron();
     }
-    nearLantern = -1;
+    nearAct = null;
     interactBtn.classList.remove("show");
   }
+}
+
+/* ── автоприцел ── */
+const _fwd = new THREE.Vector3(), _to = new THREE.Vector3();
+function aimDir() {
+  _fwd.set(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+  let bestDir = null, bestD = Infinity;
+  for (const e of combat.enemies) {
+    _to.subVectors(e.obj.position, player.position); _to.y = 0;
+    const d = _to.length();
+    if (d > 20) continue;
+    _to.normalize();
+    if (_to.dot(_fwd) < .3) continue; // конус ~72°
+    if (d < bestD) { bestD = d; bestDir = _to.clone(); }
+  }
+  return bestDir || _fwd.clone();
 }
 
 /* ── цикл ── */
@@ -81682,7 +82734,31 @@ function frame() {
 
   input.update();
   player.update(dt, input, cam.yaw, world.colliders);
-  if (input.consumeJump()) audio.jump();
+  if (input.consumeJump() && !input.locked) audio.jump();
+
+  // ── M2: бой ──
+  if (!input.locked && !combat.dead) {
+    if (input.consumeAttack()) {
+      if (combat.tryAttack(player.position, aimDir())) player.attackT = .22;
+    }
+    if (input.consumeBlink() && story.blinkUnlocked) combat.tryBlink(player);
+    if (input.consumePotion() && story.usePotion()) {
+      world.burst(player.obj.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff9ed2, 8);
+    }
+  } else {
+    input.consumeAttack(); input.consumeBlink(); input.consumePotion(); input.consumeJump();
+  }
+  combat.update(dt, elapsed, player.position, input, player);
+
+  // ── спутники и декор жизни ──
+  fox.update(dt, elapsed, player.position);
+  story.updateHerbs(dt, elapsed, player.position);
+  den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;
+  den.lamp.rotation.y = elapsed * 1.2;
+  den.group.rotation.z = Math.sin(elapsed * .8) * .015;
+  camp.flame.scale.setScalar(1.4 + Math.sin(elapsed * 8) * .18 + Math.sin(elapsed * 13.7) * .1);
+  camp.flameCore.scale.y = 1 + Math.sin(elapsed * 9) * .15;
+  camp.broth.material.emissiveIntensity = .7 + Math.sin(elapsed * 2.4) * .3;
 
   // камера: свайп/мышь + следование
   const cd = input.takeCamDelta();
@@ -81718,6 +82794,9 @@ addEventListener("resize", () => {
 document.addEventListener("visibilitychange", () => { if (document.hidden) persist(); });
 addEventListener("pagehide", persist);
 
+
+// отладочный доступ (тесты)
+window.__debug = { world, player, combat, story, fox };
 
 } catch (e) { var __err = document.createElement("pre");__err.style.cssText = "color:#ff7a9e;padding:16px;white-space:pre-wrap;font-size:12px";__err.textContent = "ОШИБКА СБОРКИ: " + (e && e.stack || e);document.body.prepend(__err); }
 </script>

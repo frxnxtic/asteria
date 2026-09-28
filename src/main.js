@@ -3,12 +3,17 @@ import { Input } from "./input.js";
 import { Player } from "./player.js";
 import { createWorld } from "./world.js";
 import { AudioEngine } from "./audio.js";
+import { Combat } from "./combat.js";
+import { Story, toast } from "./story.js";
+import { Fox, buildDen, buildCamp, buildHerb } from "./entities.js";
 
 /* ── сейвы ── */
 const SAVE_KEY = "asteria_save_v1";
 const save = {
   fireflies: 0, lanterns: [], pos: { x: 0, y: 0, z: 4 }, yaw: 0,
   dayT: 0.56, muted: false,
+  storyStep: 0, questHerbs: 0, herbCarry: 0, potions: 0,
+  blinkUnlocked: false, potionRecipe: false,
 };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
@@ -60,19 +65,44 @@ const input = new Input(canvas);
 const audio = new AudioEngine();
 audio.muted = save.muted;
 
+/* ── M2: костёл Дэна, бой, глава ── */
+const camp = buildCamp(scene, world.glowTex, world.colliders);
+const den = buildDen();
+den.group.position.set(camp.x - 1.2, 0, camp.z - .8);
+den.group.rotation.y = 2.6;
+scene.add(den.group);
+
+const fox = new Fox(scene);
+
+const combat = new Combat(scene, world, audio, world.glowTex);
+combat.refreshHp();
+combat.onDeath = () => {
+  toast("Мгла поглотила тебя… но свет возвращает тебя 💫", 3200);
+  setTimeout(() => {
+    player.obj.position.set(camp.x + .8, 0, camp.z + 1.6);
+    combat.respawn();
+  }, 1400);
+};
+combat.onWaveCleared = () => story.waveCleared();
+
+const story = new Story({
+  scene, world, player, combat, audio, fox, save, persist, input, camp,
+});
+story.ensureHerbMeshes(buildHerb);
+
 /* ── камера-риг ── */
 const cam = { yaw: Math.PI, pitch: .42, dist: 7.2, cur: new THREE.Vector3(0, 5, 10) };
 
 /* ── UI ── */
 const $ = id => document.getElementById(id);
-const startScreen = $("start"), hud = $("hud"), toast = $("toast");
+const startScreen = $("start"), hud = $("hud"), toastEl = $("toast");
 const interactBtn = $("interactBtn"), soundBtn = $("soundBtn");
 let toastTimer = null;
 function showToast(msg, ms = 2600) {
-  toast.textContent = msg;
-  toast.classList.add("show");
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), ms);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
 }
 function updateHUD() {
   $("ffCount").textContent = world.firefliesCollected;
@@ -112,27 +142,60 @@ startScreen.addEventListener("pointerdown", () => {
   setTimeout(() => showToast("Собирай ✨ и зажигай 🏮 фонари", 3600), 900);
 }, { once: false });
 
-/* ── взаимодействие с фонарями ── */
-let nearLantern = -1;
+/* ── взаимодействие: фонари, Дэн, котелок ── */
+let nearAct = null;
+const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲" };
 function checkInteract() {
-  let best = -1, bestD = 2.3;
+  if (story.dialog.active) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
+  let best = null, bestD = 2.4;
   world.lanterns.forEach((L, i) => {
     if (L.lit) return;
     const d = Math.hypot(player.position.x - L.x, player.position.z - L.z);
-    if (d < bestD) { bestD = d; best = i; }
+    if (d < bestD) { bestD = d; best = { type: "lantern", i }; }
   });
-  if (best !== nearLantern) {
-    nearLantern = best;
-    interactBtn.classList.toggle("show", best >= 0);
+  {
+    const d = Math.hypot(player.position.x - den.group.position.x, player.position.z - den.group.position.z);
+    if (d < bestD) { bestD = d; best = { type: "den" }; }
   }
-  if (input.consumeInteract() && nearLantern >= 0) {
-    if (world.lightLantern(nearLantern)) {
-      save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
-      world.onLantern(nearLantern);
+  {
+    const d = Math.hypot(player.position.x - (camp.x + 1.1), player.position.z - (camp.z + .3));
+    if (d < bestD) { bestD = d; best = { type: "cauldron" }; }
+  }
+  if ((best && best.type) !== (nearAct && nearAct.type)) {
+    nearAct = best;
+    if (best) { interactBtn.textContent = ACT_EMOJI[best.type]; interactBtn.classList.add("show"); }
+    else interactBtn.classList.remove("show");
+  }
+  if (input.consumeInteract() && nearAct) {
+    if (nearAct.type === "lantern") {
+      if (world.lightLantern(nearAct.i)) {
+        save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
+        world.onLantern(nearAct.i);
+      }
+    } else if (nearAct.type === "den") {
+      story.talkToDen();
+    } else if (nearAct.type === "cauldron") {
+      story.useCauldron();
     }
-    nearLantern = -1;
+    nearAct = null;
     interactBtn.classList.remove("show");
   }
+}
+
+/* ── автоприцел ── */
+const _fwd = new THREE.Vector3(), _to = new THREE.Vector3();
+function aimDir() {
+  _fwd.set(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+  let bestDir = null, bestD = Infinity;
+  for (const e of combat.enemies) {
+    _to.subVectors(e.obj.position, player.position); _to.y = 0;
+    const d = _to.length();
+    if (d > 20) continue;
+    _to.normalize();
+    if (_to.dot(_fwd) < .3) continue; // конус ~72°
+    if (d < bestD) { bestD = d; bestDir = _to.clone(); }
+  }
+  return bestDir || _fwd.clone();
 }
 
 /* ── цикл ── */
@@ -146,7 +209,31 @@ function frame() {
 
   input.update();
   player.update(dt, input, cam.yaw, world.colliders);
-  if (input.consumeJump()) audio.jump();
+  if (input.consumeJump() && !input.locked) audio.jump();
+
+  // ── M2: бой ──
+  if (!input.locked && !combat.dead) {
+    if (input.consumeAttack()) {
+      if (combat.tryAttack(player.position, aimDir())) player.attackT = .22;
+    }
+    if (input.consumeBlink() && story.blinkUnlocked) combat.tryBlink(player);
+    if (input.consumePotion() && story.usePotion()) {
+      world.burst(player.obj.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff9ed2, 8);
+    }
+  } else {
+    input.consumeAttack(); input.consumeBlink(); input.consumePotion(); input.consumeJump();
+  }
+  combat.update(dt, elapsed, player.position, input, player);
+
+  // ── спутники и декор жизни ──
+  fox.update(dt, elapsed, player.position);
+  story.updateHerbs(dt, elapsed, player.position);
+  den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;
+  den.lamp.rotation.y = elapsed * 1.2;
+  den.group.rotation.z = Math.sin(elapsed * .8) * .015;
+  camp.flame.scale.setScalar(1.4 + Math.sin(elapsed * 8) * .18 + Math.sin(elapsed * 13.7) * .1);
+  camp.flameCore.scale.y = 1 + Math.sin(elapsed * 9) * .15;
+  camp.broth.material.emissiveIntensity = .7 + Math.sin(elapsed * 2.4) * .3;
 
   // камера: свайп/мышь + следование
   const cd = input.takeCamDelta();
@@ -186,3 +273,6 @@ addEventListener("pagehide", persist);
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+
+// отладочный доступ (тесты)
+window.__debug = { world, player, combat, story, fox };

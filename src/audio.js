@@ -153,6 +153,110 @@ export class AudioEngine {
     arp.forEach((f, i) => this._note(f, t0 + i * .09, 1.6, { gain: .09, att: .006, bus: this.sfxBus, pan: (i % 2 ? .3 : -.3) }));
   }
 
+  shoot() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(760, t0);
+    o.frequency.exponentialRampToValueAtTime(1480, t0 + .1);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.05, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .16);
+    o.connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .2);
+    this._note(2960, t0, .1, { gain: .014, att: .004, bus: this.sfxBus });
+  }
+
+  blink() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(1100, t0);
+    o.frequency.exponentialRampToValueAtTime(320, t0 + .22);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.07, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .26);
+    o.connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .3);
+  }
+
+  hitEnemy() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const b = ctx.createBuffer(1, 1600, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.6);
+    const src = ctx.createBufferSource(); src.buffer = b;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 900;
+    const g = ctx.createGain(); g.gain.value = .16;
+    src.connect(f).connect(g).connect(this.sfxBus);
+    src.start(t0);
+    this._note(196, t0, .12, { type: "triangle", gain: .07, att: .004, bus: this.sfxBus });
+  }
+
+  enemyDie() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = "sawtooth";
+    o.frequency.setValueAtTime(300, t0);
+    o.frequency.exponentialRampToValueAtTime(60, t0 + .3);
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 700;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.08, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .34);
+    o.connect(f).connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .4);
+    this._note(1174, t0 + .05, .5, { gain: .03, att: .005, bus: this.sfxBus });
+  }
+
+  hurt() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = "triangle";
+    o.frequency.setValueAtTime(180, t0);
+    o.frequency.exponentialRampToValueAtTime(70, t0 + .25);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.14, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .3);
+    o.connect(g).connect(this.sfxBus);
+    o.start(t0); o.stop(t0 + .35);
+  }
+
+  herb() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const b = ctx.createBuffer(1, 700, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+    const src = ctx.createBufferSource(); src.buffer = b;
+    const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 1800;
+    const g = ctx.createGain(); g.gain.value = .09;
+    src.connect(f).connect(g).connect(this.sfxBus);
+    src.start(t0);
+    this._note(1568, t0 + .03, .35, { gain: .03, att: .005, bus: this.sfxBus });
+  }
+
+  brew() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) =>
+      this._note(f, t0 + i * .13, .9, { gain: .07, att: .008, bus: this.sfxBus, pan: (i % 2 ? .25 : -.25) }));
+  }
+
+  questDone() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    [659.3, 784, 987.8, 1318.5, 1568].forEach((f, i) =>
+      this._note(f, t0 + i * .1, 1.8, { gain: .08, att: .008, bus: this.sfxBus, pan: (i % 2 ? .3 : -.3) }));
+  }
+
+  blip() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    this._note(880, t0, .12, { gain: .04, att: .004, bus: this.sfxBus });
+  }
+
   /* ── вызывать каждый кадр ── */
   update(dt, elapsed, speed2d, onGround, nightF) {
     if (!this.ctx || this.muted) return;

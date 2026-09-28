@@ -94,6 +94,7 @@ export class Player {
     this.speed2d = 0;         // для анимации и звука шагов
     this.onGround = true;
     this.walkPhase = 0;
+    this.attackT = 0;
     scene.add(group);
   }
 
@@ -192,8 +193,17 @@ export class Player {
 
     // посох в правой руке покачивается, звезда мерцает
     r.staff.rotation.z = -0.15 + swing * 0.25;
+    r.staff.rotation.x = 0;
     r.staffStar.material.emissiveIntensity = 1.2 + Math.sin(t * 2.6) * 0.5;
     r.staffStar.rotation.y = t * 1.4;
+
+    // поза атаки: рука и посох вперёд
+    if (this.attackT > 0) {
+      this.attackT -= dt;
+      r.armR.rotation.x = -1.7;
+      r.staff.rotation.x = -1.15;
+      r.staffStar.material.emissiveIntensity = 3;
+    }
 
     // тень-блоб
     if (this.blob) {

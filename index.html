@@ -92,21 +92,87 @@
     display: grid; place-items: center; font-weight: 800; color: var(--ink);
     background: radial-gradient(circle at 35% 30%, rgba(139,107,255,.5), rgba(60,36,120,.65));
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 6px 20px rgba(0,0,0,.4);
+    box-shadow: 0 6px 20px rgba(0,0,0,.4); transition: opacity .2s;
   }
   .act-btn:active, .act-btn.pressed { transform: scale(.92); filter: brightness(1.35); }
+  .act-btn.cooldown { opacity: .38; }
+  #attackBtn {
+    right: calc(30px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom));
+    width: 92px; height: 92px; font-size: 34px; pointer-events: auto;
+    border-color: rgba(245,200,107,.5);
+    background: radial-gradient(circle at 35% 30%, rgba(245,200,107,.45), rgba(110,75,25,.6));
+  }
   #jumpBtn {
     right: calc(26px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom));
-    width: 84px; height: 84px; font-size: 30px; pointer-events: auto;
+    width: 76px; height: 76px; font-size: 27px; pointer-events: auto;
+  }
+  #blinkBtn {
+    right: calc(136px + env(safe-area-inset-right)); bottom: calc(44px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px; font-size: 24px; pointer-events: auto;
+  }
+  #potionBtn {
+    right: calc(126px + env(safe-area-inset-right)); bottom: calc(128px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; font-size: 21px; pointer-events: auto;
+    border-color: rgba(255,158,210,.5);
+    background: radial-gradient(circle at 35% 30%, rgba(255,158,210,.42), rgba(110,45,80,.6));
+  }
+  #potionBtn .qty {
+    position: absolute; right: -4px; top: -4px; min-width: 22px; height: 22px; border-radius: 99px;
+    background: var(--pink); color: #40142c; font-size: 13px; font-weight: 800;
+    display: grid; place-items: center; padding: 0 4px;
   }
   #interactBtn {
-    right: calc(128px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom));
+    right: calc(136px + env(safe-area-inset-right)); bottom: calc(212px + env(safe-area-inset-bottom));
     width: 74px; height: 74px; font-size: 26px; pointer-events: auto; display: none;
     border-color: rgba(245,200,107,.55);
     background: radial-gradient(circle at 35% 30%, rgba(245,200,107,.45), rgba(120,80,30,.6));
   }
   #interactBtn.show { display: grid; animation: pop .25s ease; }
   @keyframes pop { from { transform: scale(.6); opacity: 0;} to { transform: scale(1); opacity: 1;} }
+
+  /* ── HP-звёзды ── */
+  #hpBar { position: absolute; top: calc(58px + env(safe-area-inset-top)); left: 16px; display: flex; gap: 3px; }
+  #hpBar .hp { font-size: 19px; filter: drop-shadow(0 0 5px rgba(245,200,107,.6)); transition: all .3s; }
+  #hpBar .hp.off { opacity: .18; filter: grayscale(1); transform: scale(.85); }
+
+  /* ── виджет цели ── */
+  #objective {
+    position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid rgba(245,200,107,.35); border-radius: 99px;
+    padding: 7px 16px; font-size: 14px; font-weight: 700; color: var(--gold);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); white-space: nowrap;
+    max-width: 86vw; overflow: hidden; text-overflow: ellipsis; transition: opacity .4s;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  #objective.flash { animation: objflash 1.2s ease; }
+  @keyframes objflash { 0% { transform: translateX(-50%) scale(1);} 30% { transform: translateX(-50%) scale(1.12);} 100% { transform: translateX(-50%) scale(1);} }
+
+  /* ── диалоговое окно ── */
+  #dialog {
+    position: absolute; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom));
+    transform: translateX(-50%); width: min(620px, 92vw); z-index: 25; display: none;
+    background: rgba(18, 10, 38, .92); border: 1px solid rgba(201,184,255,.35);
+    border-radius: 18px; padding: 14px 16px; cursor: pointer;
+    box-shadow: 0 12px 40px rgba(0,0,0,.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  #dialog.open { display: flex; gap: 12px; animation: dpop .25s ease; }
+  @keyframes dpop { from { transform: translateX(-50%) translateY(16px); opacity: 0;} to { transform: translateX(-50%) translateY(0); opacity: 1;} }
+  #dialog .avatar {
+    width: 54px; height: 54px; flex: 0 0 54px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 30px; background: radial-gradient(circle at 35% 30%, #4a3a7a, #241548);
+    border: 2px solid rgba(245,200,107,.5);
+  }
+  #dialog .body { flex: 1; }
+  #dialog .who { color: var(--gold); font-weight: 800; font-size: 14px; letter-spacing: .06em; margin-bottom: 3px; }
+  #dialog .line { font-size: 16.5px; line-height: 1.45; min-height: 44px; }
+  #dialog .next { color: var(--lav); font-size: 12px; text-align: right; animation: pulse 1.6s infinite; }
+
+  #hurtFx {
+    position: absolute; inset: 0; z-index: 15; pointer-events: none; opacity: 0;
+    background: radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(200,30,60,.55) 100%);
+    transition: opacity .12s;
+  }
+  #hurtFx.on { opacity: 1; }
 
   /* ── тосты ── */
   #toast {
@@ -134,11 +200,26 @@
     <div class="chip" id="timeChip"><span class="em" id="timeIcon">🌙</span><span id="timeLabel">ночь</span></div>
     <div id="soundBtn" title="звук">🔊</div>
   </div>
+  <div id="objective">✨ Пробудись, хранительница…</div>
+  <div id="hpBar"></div>
   <div id="joyBase"><div id="joyKnob"></div></div>
-  <div class="act-btn" id="jumpBtn">⬆️</div>
   <div class="act-btn" id="interactBtn">🔥</div>
+  <div class="act-btn" id="potionBtn">🧪<span class="qty" id="potionQty">0</span></div>
+  <div class="act-btn" id="attackBtn">✦</div>
+  <div class="act-btn" id="blinkBtn">💫</div>
+  <div class="act-btn" id="jumpBtn">⬆️</div>
   <div id="toast"></div>
 </div>
+
+<div id="dialog">
+  <div class="avatar" id="dlgAvatar">🧑</div>
+  <div class="body">
+    <div class="who" id="dlgWho"></div>
+    <div class="line" id="dlgLine"></div>
+    <div class="next">коснись ▸</div>
+  </div>
+</div>
+<div id="hurtFx"></div>
 
 <div id="start">
   <div class="star">✨</div>
@@ -148,6 +229,11 @@
   <div class="hint">джойстик — слева · камера — свайп справа · на компьютере: WASD + мышь</div>
 </div>
 
+<script>
+window.__log = [];
+window.addEventListener("error", e => window.__log.push(e.message + " @" + (e.filename || "") + ":" + e.lineno));
+window.addEventListener("unhandledrejection", e => window.__log.push("rejection: " + e.reason));
+</script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>
