@@ -192,7 +192,7 @@ export function createWorld(scene, renderer) {
   );
   stream.rotation.x = -Math.PI / 2; stream.position.set(0, -0.12, -31);
   scene.add(stream);
-  addCol(-2.4, -28.5, 9); addCol(2.4, -28.5, 9); // «берега» за пределами моста — мягкие
+  // берега ручья обрабатываются логикой воды/моста в player.js (полоса z -34.4..-27.2)
   const bridge = new THREE.Group();
   for (let i = 0; i < 9; i++) {
     const f = i / 8;
@@ -200,7 +200,7 @@ export function createWorld(scene, renderer) {
       new THREE.BoxGeometry(3, .14, .78),
       new THREE.MeshStandardMaterial({ color: 0x7a5236, flatShading: true, roughness: 1 })
     );
-    plank.position.set(0, Math.sin(f * Math.PI) * .5 + .05, -27.5 - i * .82);
+    plank.position.set(0, .05, -27.5 - i * .82);
     plank.castShadow = plank.receiveShadow = true;
     bridge.add(plank);
   }
@@ -211,7 +211,7 @@ export function createWorld(scene, renderer) {
         new THREE.CylinderGeometry(.05, .05, .7, 6),
         new THREE.MeshStandardMaterial({ color: 0x5a3c28, flatShading: true })
       );
-      post.position.set(side * 1.45, Math.sin(f * Math.PI) * .5 + .5, -27.6 - f * 6.8);
+      post.position.set(side * 1.45, .5, -27.6 - f * 6.8);
       bridge.add(post);
     }
   }

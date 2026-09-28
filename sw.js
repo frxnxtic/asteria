@@ -1,5 +1,6 @@
 // Офлайн-кэш Астерии: cache-first, обновление по версии.
-const CACHE = "asteria-v1";
+// ВАЖНО: при каждом деплое поднимать версию, иначе игроки останутся на старых файлах.
+const CACHE = "asteria-v2";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest",
   "./vendor/three.module.js", "./vendor/three.core.js",

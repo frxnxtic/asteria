@@ -142,6 +142,16 @@ export class Player {
       }
     }
 
+    // ручей: вода — полоса z ∈ (-34.4, -27.2); мост при |x| ≤ 1.5
+    const p = this.obj.position;
+    if (p.z < -27.2 && p.z > -34.4) {
+      if (Math.abs(p.x) <= 1.5) {
+        p.x = THREE.MathUtils.clamp(p.x, -1.2, 1.2); // перила моста
+      } else {
+        p.z = p.z > -30.8 ? -27.2 : -34.4; // выталкиваем на ближний берег
+      }
+    }
+
     // поворот модели к направлению движения
     if (this.speed2d > 0.3) {
       const targetYaw = Math.atan2(this.vel.x, this.vel.z);
