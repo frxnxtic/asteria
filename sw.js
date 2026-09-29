@@ -1,12 +1,13 @@
 // Офлайн-кэш Астерии: cache-first, обновление по версии.
 // ВАЖНО: при каждом деплое поднимать версию, иначе игроки останутся на старых файлах.
-const CACHE = "asteria-v5";
+const CACHE = "asteria-v6";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest",
   "./vendor/three.module.js", "./vendor/three.core.js",
   "./src/main.js", "./src/input.js", "./src/player.js", "./src/world.js",
   "./src/entities.js", "./src/combat.js", "./src/story.js", "./src/audio.js",
   "./src/puzzles.js", "./src/events.js", "./src/weather.js", "./src/npcs.js",
+  "./src/finale.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png",
 ];
 

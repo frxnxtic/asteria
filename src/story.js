@@ -190,6 +190,22 @@ export class Story {
         break;
       case 13:
         this.objective("Глава 2 завершена ✨ Созвездие Лисы горит", !initial);
+        if (!initial && !(this.save.hint3)) {
+          this.save.hint3 = true;
+          setTimeout(() => toast("Борей что-то увидел в телескоп… поговори с Дэном 🔭", 4200), 4000);
+        }
+        break;
+      case 14:
+        this.objective("Пройди по мосту света к Чаше Весов 🌉", !initial);
+        break;
+      case 15:
+        this.objective("Победи Тишь — сердце угасания ⚔️", !initial);
+        break;
+      case 16:
+        this.objective("Небо решает, кем ему быть… выбери ✨", !initial);
+        break;
+      case 17:
+        this.objective("Астерия твоя. Живи ✨", !initial);
         break;
     }
     this.save.storyStep = this.step;
@@ -199,7 +215,8 @@ export class Story {
   getTarget() {
     const s = this.world.sanctuary;
     switch (this.step) {
-      case 5: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      case 5: case 13:
+        return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
       case 6: return { x: 0, z: -36, label: "врата леса" };
       case 7: return { x: -3, z: -47, label: "зеркала" };
       case 8: return { x: -8, z: -54, label: "звёздная плита" };
@@ -207,6 +224,7 @@ export class Story {
       case 10:
       case 11: return { x: s.x, z: s.z, label: "святилище" };
       case 12: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      case 14: case 15: return { x: 0, z: -84, label: "мост света" };
       default: return null;
     }
   }
@@ -235,6 +253,23 @@ export class Story {
     if (this.step === 11 && this.bossSpawned && this.combat.enemies.length === 0) {
       this.bossDefeated();
     }
+    // глава 3: вход на арену Чаши → финальный бой
+    if (this.step === 14 && playerPos.z < -77) {
+      this.nextStep();
+      toast("Мост света дрожит под ногами… Вперёд, хранительница", 3800);
+    }
+    if (this.step === 15 && !this.finale.tishSpawned) {
+      const a = this.finale.arena;
+      if (Math.hypot(playerPos.x - a.x, playerPos.z - a.z) < 11) {
+        this.finale.startFight();
+        toast("ТИШЬ ПРОБУЖДАЕТСЯ. Дэн держит фланг — за тобой небо! ⚔️", 4600);
+      }
+    }
+    // страховка: сейв сохранил шаг «выбери», но Тишь ещё не побеждена/выбор не сделан
+    const started = document.getElementById("hud").classList.contains("on");
+    if (started && this.step === 16 && !this.save.ending && this.combat.enemies.length === 0 && !this._endingFlow) {
+      this.onTishDefeated();
+    }
   }
 
   /* ── решённые загадки (колбэки от puzzles) ── */
@@ -252,6 +287,23 @@ export class Story {
     if (name === "bells" && this.step === 9) {
       this.nextStep();
     }
+  }
+
+  /* ── Тишь повержена: предложить судьбу неба ── */
+  onTishDefeated() {
+    if (this._endingFlow) return;
+    this._endingFlow = true;
+    this.audio.questDone();
+    this.world.burst(new THREE.Vector3(this.finale.arena.x, 2, this.finale.arena.z), 0x5a8ae0, 24);
+    if (this.step === 15) this.nextStep();
+    setTimeout(() => this.finale.offerChoice(key => {
+      this.finale.playEnding(key, this.dialog, () => {
+        this.step = 17;
+        this.save.storyStep = 17;
+        this.objective("Астерия твоя. Живи ✨");
+        this.persist();
+      });
+    }), 1200);
   }
 
   /* ── босс повержен ── */
@@ -322,6 +374,27 @@ export class Story {
         this.audio.questDone();
         toast("Глава 2 завершена ✨ Награда: +3 блёстки 💎", 4200);
       });
+    } else if (this.step === 13) {
+      D.open("Дэн", "🧑", [
+        "Борей не спал всю ночь. В телескоп видно: гаснет Чаша Весов — сердце самой Тиши.",
+        "За святилищем открылся мост света. Он выдержит только хранительницу.",
+        "Ты не одна: Искра с тобой, я буду рядом на арене. Моё плечо — твоё.",
+        "Иди. Астерия смотрит на тебя. 🌌",
+      ], () => this.nextStep());
+    } else if (this.step === 17) {
+      if (this._denRepeat) {
+        D.open("Дэн", "🧑", [
+          "Уверена? Прожить всё заново — с нуля, но сохранив светлячков, блёстки и наряды?",
+          "Тогда просто шагни в утро. Я буду ждать у костра. Всегда. 💜",
+        ], () => this.finale.startNewGamePlus(this));
+        this._denRepeat = false;
+      } else {
+        this._denRepeat = true;
+        D.open("Дэн", "🧑", [
+          "Небо твоё, хранительница. Живи в нём сколько захочешь.",
+          "А если однажды захочется пережить всё сначала — просто поговори со мной ещё раз. 🌟",
+        ]);
+      }
     } else {
       D.open("Дэн", "🧑", ["Отдыхай, хранительница. Скоро откроются новые пути."]);
     }

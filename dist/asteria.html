@@ -82065,15 +82065,18 @@ class Combat {
       crawler: { r: .38, hp: 3, speed: 2.3 },
       elite: { r: .55, hp: 7, speed: 1.7 },
       boss: { r: 1.1, hp: 40, speed: 1.85 },
+      tish: { r: 1.3, hp: 60, speed: 2.0 },
     }[kind];
     const { group, body, eyeL, eyeR } = buildMist(cfg.r, kind !== "crawler");
-    if (kind === "boss") {
-      // корона шипов Пожирателя Света
+    if (kind === "boss" || kind === "tish") {
+      // корона шипов (Тишь — выше и холоднее)
+      const crownC = kind === "tish" ? 0x1a2440 : 0x2e2050;
+      const crownE = kind === "tish" ? 0x5a8ae0 : 0x9b5bee;
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
         const spike = new THREE.Mesh(
           new THREE.ConeGeometry(.14, .8, 4),
-          mat(0x2e2050, { emissive: 0x9b5bee, emissiveIntensity: 1.2 })
+          mat(crownC, { emissive: crownE, emissiveIntensity: 1.2 })
         );
         spike.position.set(Math.cos(a) * cfg.r * .75, cfg.r * 1.5, Math.sin(a) * cfg.r * .75);
         spike.rotation.z = Math.cos(a) * .4;
@@ -82090,11 +82093,27 @@ class Combat {
       obj: group, body, eyes: [eyeL, eyeR],
       r: cfg.r, hp: cfg.hp, maxHp: cfg.hp,
       speed: cfg.speed + (kind === "crawler" ? Math.random() * .5 : 0),
-      elite: kind === "elite", boss: kind === "boss",
+      elite: kind === "elite", boss: kind === "boss" || kind === "tish", tish: kind === "tish",
       seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
       // босс: фазы и атаки
       phase: 1, dashT: 0, dashDir: null, minionT: 5, ringT: 3,
     });
+  }
+
+  // союзный залп (Дэн в финальном бою)
+  allyShot(from, targetEnemy) {
+    if (!targetEnemy) return;
+    const spr = this.projPool.find(p => !p.visible);
+    if (!spr) return;
+    spr.visible = true;
+    spr.scale.setScalar(.5);
+    spr.material.opacity = 1;
+    spr.material.color.setHex(0xffd9a0);
+    spr.position.copy(from);
+    const dir = new THREE.Vector3().subVectors(
+      targetEnemy.obj.position.clone().add(new THREE.Vector3(0, targetEnemy.r, 0)), from
+    ).normalize();
+    this.projectiles.push({ spr, dir, speed: 18, life: 1.4, ally: true });
   }
 
   startWave(spawns) {
@@ -82105,6 +82124,11 @@ class Combat {
 
   startBoss(pos) {
     this.spawnEnemy(pos, "boss");
+    this.onBossIntro && this.onBossIntro();
+  }
+
+  startTish(pos) {
+    this.spawnEnemy(pos, "tish");
     this.onBossIntro && this.onBossIntro();
   }
 
@@ -82134,7 +82158,7 @@ class Combat {
         // очистить кольца
         for (const ring of this.rings) this.scene.remove(ring.mesh);
         this.rings.length = 0;
-        this.onBossDefeated && this.onBossDefeated();
+        this.onBossDefeated && this.onBossDefeated(e);
       } else {
         this.onEnemyKilled && this.onEnemyKilled(e);
       }
@@ -82274,9 +82298,10 @@ class Combat {
     }
   }
 
-  /* ── босс: Пожиратель Света ── */
+  /* ── босс: Пожиратель Света / Тишь ── */
   _updateBoss(e, dt, elapsed, playerPos, dir, dist) {
-    e.phase = e.hp > 26 ? 1 : e.hp > 12 ? 2 : 3;
+    const hpFrac = e.hp / e.maxHp;
+    e.phase = hpFrac > .65 ? 1 : hpFrac > .3 ? 2 : 3;
     // контактный урон и погоня обрабатываются в общем цикле; здесь спец-атаки
     if (e.dashT > 0) {
       // фаза рывка
@@ -82298,39 +82323,43 @@ class Combat {
       // рывок каждые ~4.5с
       e.dashCd = (e.dashCd ?? 4) - dt;
       if (e.dashCd <= 0 && dist > 3) {
-        e.dashCd = 4.5;
+        e.dashCd = e.tish ? 3.6 : 4.5;
         e.chargeT = .7; // телеграф: замирает и сжимается
         this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, 1.6, 0)), 0x6b4a8a, 6);
       }
-      // миньоны
+      // миньоны (Тишь призывает элиту)
       e.minionT -= dt;
       if (e.minionT <= 0) {
-        e.minionT = 8;
+        e.minionT = e.tish ? 9 : 8;
         const minions = this.enemies.filter(x => !x.boss).length;
-        if (minions < 2) {
+        if (minions < (e.tish ? 2 : 2)) {
           const a = Math.random() * Math.PI * 2;
           const p = e.obj.position.clone().add(new THREE.Vector3(Math.cos(a) * 2, 0, Math.sin(a) * 2));
-          this.spawnEnemy(p, "crawler");
+          this.spawnEnemy(p, e.tish ? "elite" : "crawler");
           this.world.burst(p.clone().add(new THREE.Vector3(0, .6, 0)), 0x9b5bee, 8);
         }
       }
     }
     if (e.phase >= 3) {
-      // кольца-волны
+      // кольца-волны (Тишь — двойные)
       e.ringT -= dt;
       if (e.ringT <= 0) {
-        e.ringT = 4.2;
-        const mesh = new THREE.Mesh(
-          new THREE.TorusGeometry(1, .07, 6, 48),
-          new THREE.MeshBasicMaterial({
-            color: 0xb98bff, transparent: true, opacity: .85,
-            blending: THREE.AdditiveBlending, depthWrite: false,
-          })
-        );
-        mesh.rotation.x = Math.PI / 2;
-        mesh.position.set(e.obj.position.x, .3, e.obj.position.z);
-        this.scene.add(mesh);
-        this.rings.push({ mesh, r: 1, x: e.obj.position.x, z: e.obj.position.z, hitDone: false });
+        e.ringT = e.tish ? 3.4 : 4.2;
+        const spawnRing = () => {
+          const mesh = new THREE.Mesh(
+            new THREE.TorusGeometry(1, .07, 6, 48),
+            new THREE.MeshBasicMaterial({
+              color: e.tish ? 0x5a8ae0 : 0xb98bff, transparent: true, opacity: .85,
+              blending: THREE.AdditiveBlending, depthWrite: false,
+            })
+          );
+          mesh.rotation.x = Math.PI / 2;
+          mesh.position.set(e.obj.position.x, .3, e.obj.position.z);
+          this.scene.add(mesh);
+          this.rings.push({ mesh, r: 1, x: e.obj.position.x, z: e.obj.position.z, hitDone: false });
+        };
+        spawnRing();
+        if (e.tish) setTimeout(spawnRing, 450);
         this.audio.blink();
       }
     }
@@ -82528,6 +82557,22 @@ class Story {
         break;
       case 13:
         this.objective("Глава 2 завершена ✨ Созвездие Лисы горит", !initial);
+        if (!initial && !(this.save.hint3)) {
+          this.save.hint3 = true;
+          setTimeout(() => toast("Борей что-то увидел в телескоп… поговори с Дэном 🔭", 4200), 4000);
+        }
+        break;
+      case 14:
+        this.objective("Пройди по мосту света к Чаше Весов 🌉", !initial);
+        break;
+      case 15:
+        this.objective("Победи Тишь — сердце угасания ⚔️", !initial);
+        break;
+      case 16:
+        this.objective("Небо решает, кем ему быть… выбери ✨", !initial);
+        break;
+      case 17:
+        this.objective("Астерия твоя. Живи ✨", !initial);
         break;
     }
     this.save.storyStep = this.step;
@@ -82537,7 +82582,8 @@ class Story {
   getTarget() {
     const s = this.world.sanctuary;
     switch (this.step) {
-      case 5: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      case 5: case 13:
+        return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
       case 6: return { x: 0, z: -36, label: "врата леса" };
       case 7: return { x: -3, z: -47, label: "зеркала" };
       case 8: return { x: -8, z: -54, label: "звёздная плита" };
@@ -82545,6 +82591,7 @@ class Story {
       case 10:
       case 11: return { x: s.x, z: s.z, label: "святилище" };
       case 12: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      case 14: case 15: return { x: 0, z: -84, label: "мост света" };
       default: return null;
     }
   }
@@ -82573,6 +82620,23 @@ class Story {
     if (this.step === 11 && this.bossSpawned && this.combat.enemies.length === 0) {
       this.bossDefeated();
     }
+    // глава 3: вход на арену Чаши → финальный бой
+    if (this.step === 14 && playerPos.z < -77) {
+      this.nextStep();
+      toast("Мост света дрожит под ногами… Вперёд, хранительница", 3800);
+    }
+    if (this.step === 15 && !this.finale.tishSpawned) {
+      const a = this.finale.arena;
+      if (Math.hypot(playerPos.x - a.x, playerPos.z - a.z) < 11) {
+        this.finale.startFight();
+        toast("ТИШЬ ПРОБУЖДАЕТСЯ. Дэн держит фланг — за тобой небо! ⚔️", 4600);
+      }
+    }
+    // страховка: сейв сохранил шаг «выбери», но Тишь ещё не побеждена/выбор не сделан
+    const started = document.getElementById("hud").classList.contains("on");
+    if (started && this.step === 16 && !this.save.ending && this.combat.enemies.length === 0 && !this._endingFlow) {
+      this.onTishDefeated();
+    }
   }
 
   /* ── решённые загадки (колбэки от puzzles) ── */
@@ -82590,6 +82654,23 @@ class Story {
     if (name === "bells" && this.step === 9) {
       this.nextStep();
     }
+  }
+
+  /* ── Тишь повержена: предложить судьбу неба ── */
+  onTishDefeated() {
+    if (this._endingFlow) return;
+    this._endingFlow = true;
+    this.audio.questDone();
+    this.world.burst(new THREE.Vector3(this.finale.arena.x, 2, this.finale.arena.z), 0x5a8ae0, 24);
+    if (this.step === 15) this.nextStep();
+    setTimeout(() => this.finale.offerChoice(key => {
+      this.finale.playEnding(key, this.dialog, () => {
+        this.step = 17;
+        this.save.storyStep = 17;
+        this.objective("Астерия твоя. Живи ✨");
+        this.persist();
+      });
+    }), 1200);
   }
 
   /* ── босс повержен ── */
@@ -82660,6 +82741,27 @@ class Story {
         this.audio.questDone();
         toast("Глава 2 завершена ✨ Награда: +3 блёстки 💎", 4200);
       });
+    } else if (this.step === 13) {
+      D.open("Дэн", "🧑", [
+        "Борей не спал всю ночь. В телескоп видно: гаснет Чаша Весов — сердце самой Тиши.",
+        "За святилищем открылся мост света. Он выдержит только хранительницу.",
+        "Ты не одна: Искра с тобой, я буду рядом на арене. Моё плечо — твоё.",
+        "Иди. Астерия смотрит на тебя. 🌌",
+      ], () => this.nextStep());
+    } else if (this.step === 17) {
+      if (this._denRepeat) {
+        D.open("Дэн", "🧑", [
+          "Уверена? Прожить всё заново — с нуля, но сохранив светлячков, блёстки и наряды?",
+          "Тогда просто шагни в утро. Я буду ждать у костра. Всегда. 💜",
+        ], () => this.finale.startNewGamePlus(this));
+        this._denRepeat = false;
+      } else {
+        this._denRepeat = true;
+        D.open("Дэн", "🧑", [
+          "Небо твоё, хранительница. Живи в нём сколько захочешь.",
+          "А если однажды захочется пережить всё сначала — просто поговори со мной ещё раз. 🌟",
+        ]);
+      }
     } else {
       D.open("Дэн", "🧑", ["Отдыхай, хранительница. Скоро откроются новые пути."]);
     }
@@ -83969,6 +84071,273 @@ class NPCs {
   }
 }
 
+// Финал: мост света, арена Чаши, бой с Тишью, выбор из трёх концовок, титры, NG+.
+
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...opts });
+
+const ENDINGS = {
+  light: {
+    title: "Развеять Тишь",
+    icon: "✨",
+    desc: "Уничтожить Тишь и вернуть небу все звёзды силой света.",
+    lines: [
+      "Юляся поднимает посох. Свет всех зажжённых фонарей Гавани стекается к звезде на его вершине.",
+      "— Иди домой, — говорит она. — Звёзды здесь. Мы здесь. И мы помним, как гореть.",
+      "Тишь растворяется беззвучно — как выдох, который длился сто лет.",
+      "Над Астерией одна за другой вспыхивают созвездия. Все. До последней звезды.",
+    ],
+  },
+  heal: {
+    title: "Понять и исцелить",
+    icon: "💗",
+    desc: "Тайники леса открыли тебе её имя. Верни Тиши её свет — и её имя.",
+    lines: [
+      "Ты знаешь её имя. Оно написано на дне каждого тайника: Тишь. Просто — Тишь. Никто не звал её по имени сто лет.",
+      "Юляся протягивает руку не с проклятием — с подарком. Осколок собственной звезды.",
+      "— Тебя помнят, — говорит она. — Просто время было очень долгим.",
+      "Тишь впервые за век издаёт звук — тихий-тихий смех. И поднимается в небо новой звездой. Самой яркой.",
+    ],
+  },
+  star: {
+    title: "Отдать свой свет",
+    icon: "🌟",
+    desc: "Стать новой звездой самой. Мир будет сиять — твоим светом.",
+    lines: [
+      "Юляся смотрит на гаснущую Чашу и понимает: звёзд не хватает. Одна — лишняя на земле.",
+      "Она улыбается Искре: — Побудь хранительницей вместо меня. У тебя получится.",
+      "Свет мягко поднимает её над ареной. Не больно. Как возвращение домой.",
+      "Ночью над Астерией загорается новая звезда. Говорят, если загадать желание — она подмигивает.",
+    ],
+  },
+};
+
+class Finale {
+  constructor(scene, world, combat, audio, player, fox, events, npcs, save, persist, dialog) {
+    this.scene = scene; this.world = world; this.combat = combat;
+    this.audio = audio; this.player = player; this.fox = fox;
+    this.events = events; this.save = save; this.persist = persist;
+    this.arena = { x: 0, z: -88 };
+    this.tishSpawned = false;
+    this.denAllyT = 0;
+    this._build();
+
+    // сейв-восстановление
+    if (this.save.ending !== undefined) this.ending = this.save.ending;
+  }
+
+  _build() {
+    // мост света: от святилища к арене
+    const bridge = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.6, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xc9b8ff, emissive: 0x8b6bff, emissiveIntensity: 1.1,
+        transparent: true, opacity: .85,
+      })
+    );
+    bridge.rotation.x = -Math.PI / 2;
+    bridge.position.set(0, .05, -84);
+    this.scene.add(bridge);
+    this.bridge = bridge;
+
+    // арена: тёмный круг + Чаша (гаснущий обелиск)
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(10, 28),
+      new THREE.MeshStandardMaterial({ color: 0x1a1430, roughness: 1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(this.arena.x, .02, this.arena.z);
+    this.scene.add(floor);
+
+    const cup = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.3, .5, 1.4, 6), mat(0x3a3455));
+    stem.position.y = .7;
+    const bowl = new THREE.Mesh(
+      new THREE.CylinderGeometry(.85, .35, .6, 10),
+      mat(0x2a2440, { emissive: 0x4a5a9a, emissiveIntensity: .4 })
+    );
+    bowl.position.y = 1.65;
+    cup.add(stem, bowl);
+    cup.position.set(this.arena.x, 0, this.arena.z);
+    this.scene.add(cup);
+    this.cup = bowl;
+    this.world.colliders.push({ x: this.arena.x, z: this.arena.z, r: 1 });
+
+    // камни арены
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2;
+      const m = new THREE.Mesh(new THREE.ConeGeometry(.5, 1.6 + (i % 3) * .4, 5), mat(0x241c38));
+      m.position.set(this.arena.x + Math.cos(a) * 10, .7, this.arena.z + Math.sin(a) * 10);
+      m.rotation.z = (i % 2 ? .08 : -.08);
+      this.scene.add(m);
+      this.world.colliders.push({ x: m.position.x, z: m.position.z, r: .5 });
+    }
+
+    // Дэн-союзник на арене (декор-позиция для залпов)
+    this.denPos = new THREE.Vector3(this.arena.x - 7, 1.4, this.arena.z + 6);
+  }
+
+  update(dt, elapsed, playerPos) {
+    // пульс моста
+    this.bridge.material.emissiveIntensity = .9 + Math.sin(elapsed * 1.8) * .3;
+    this.cup.material.emissiveIntensity = .3 + Math.sin(elapsed * 2.2) * .15 + (this.combat.enemies.some(e => e.tish) ? .5 : 0);
+
+    // залпы Дэна в бою с Тишью
+    const tish = this.combat.enemies.find(e => e.tish);
+    if (tish && playerPos) {
+      this.denAllyT -= dt;
+      if (this.denAllyT <= 0) {
+        this.denAllyT = 3.6;
+        this.combat.allyShot(this.denPos.clone(), tish);
+        this.world.burst(this.denPos.clone(), 0xffd9a0, 3);
+      }
+    }
+  }
+
+  /* ── старт финального боя ── */
+  startFight() {
+    if (this.tishSpawned) return;
+    this.tishSpawned = true;
+    this.combat.startTish(new THREE.Vector3(this.arena.x, 0, this.arena.z - 4));
+    this.audio.hurt();
+  }
+
+  /* ── после победы: сердце Тиши и выбор ── */
+  offerChoice(onChoose) {
+    this.input && this.input.setLocked(true);
+    const opened = this.events.chests.filter(c => c.opened).length;
+    const ov = document.createElement("div");
+    ov.id = "choiceOverlay";
+    ov.style.cssText = `position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:rgba(8,4,20,.9);backdrop-filter:blur(8px);overflow:auto`;
+    ov.innerHTML = `
+      <div style="font-size:44px">🌌</div>
+      <div style="color:#f2eeff;font-weight:800;font-size:21px">Сердце Тиши бьётся перед тобой</div>
+      <div style="color:#b7aed6;font-size:14.5px;max-width:480px;text-align:center">Что ты сделаешь с ней, хранительница? Выбор определяет, каким будет небо Астерии.</div>
+      <div id="endCards" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:760px"></div>`;
+    document.body.appendChild(ov);
+    const cards = ov.querySelector("#endCards");
+
+    const make = (key) => {
+      const e = ENDINGS[key];
+      const locked = key === "heal" && opened < 3;
+      const card = document.createElement("div");
+      card.style.cssText = `width:220px;padding:16px;border-radius:18px;cursor:${locked ? "not-allowed" : "pointer"};` +
+        `background:rgba(30,18,60,.9);border:2px solid ${locked ? "rgba(120,110,150,.3)" : "rgba(245,200,107,.45)"};` +
+        `display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;transition:transform .15s;` +
+        (locked ? "opacity:.55;" : "");
+      card.innerHTML = `
+        <div style="font-size:34px">${e.icon}</div>
+        <div style="color:#f5c86b;font-weight:800;font-size:16px">${e.title}</div>
+        <div style="color:#c9b8ff;font-size:12.5px;line-height:1.4">${e.desc}</div>
+        ${locked ? '<div style="color:#ff9ed2;font-size:11.5px">Открыто 3+ тайников леса 💎 (сейчас ' + opened + ')</div>' : ""}`;
+      if (!locked) {
+        card.addEventListener("pointerdown", () => {
+          ov.remove();
+          this.input && this.input.setLocked(false);
+          onChoose(key);
+        });
+        card.addEventListener("mouseenter", () => card.style.transform = "scale(1.04)");
+        card.addEventListener("mouseleave", () => card.style.transform = "scale(1)");
+      }
+      cards.appendChild(card);
+    };
+    ["light", "heal", "star"].forEach(make);
+  }
+
+  /* ── финальная сцена ── */
+  playEnding(key, dialog, onDone) {
+    this.ending = key;
+    this.save.ending = key;
+    this.persist();
+    const e = ENDINGS[key];
+    const who = key === "star" ? "Юляся" : "Астерия";
+    const avatar = key === "star" ? "🌟" : (key === "heal" ? "💗" : "✨");
+
+    // визуальный эффект
+    this.world.burst(new THREE.Vector3(this.arena.x, 2, this.arena.z), key === "heal" ? 0xff9ed2 : 0xf5e3a0, 30);
+    if (key === "star") this.fox.show(this.player.obj.position); // Искра принимает смену
+    this.audio.questDone();
+
+    dialog.open(who, avatar, e.lines, () => {
+      // все созвездия зажигаются
+      this.world.constellations.lightFox();
+      this.world.constellations.litT = 0.0001;
+      this.showCredits(onDone);
+    });
+  }
+
+  /* ── титры ── */
+  showCredits(onDone) {
+    const ov = document.createElement("div");
+    ov.id = "credits";
+    ov.style.cssText = `position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:radial-gradient(120% 120% at 50% 20%, #2b1a5e 0%, #160c33 55%, #0d0722 100%);padding:30px;text-align:center;overflow:auto`;
+    const rows = [
+      ["44px", "✨"],
+      ["clamp(34px,7vw,56px)", "АСТЕРИЯ"],
+      ["15px", "история, рассказанная для одной единственной героини"],
+      ["12px", "·"],
+      ["17px", "Юляся — та, кто зажигает звёзды"],
+      ["15px", "Дэн — хранитель Гавани"],
+      ["15px", "Искра — лисёнок, который выбрал сам"],
+      ["15px", "Мила и Борей — душа Гавани"],
+      ["15px", "9 фонарей, 22 светлячка и вся Мгла — за смелость"],
+      ["12px", "·"],
+      ["16px", "музыка рождалась из математики и лунного света"],
+      ["15px", "мир — из уважения к одному опроснику"],
+      ["14px", "«вложить душу» — принято и исполнено"],
+      ["12px", "·"],
+      ["20px", "с любовью, твой разработчик 💜"],
+    ];
+    rows.forEach(([size, text], i) => {
+      const d = document.createElement("div");
+      d.style.cssText = `font-size:${size};color:${i === 1 ? "#f5c86b" : i === 12 ? "#c9b8ff" : "#f2eeff"};` +
+        (i === 1 ? "font-weight:800;letter-spacing:.12em;" : "") +
+        (i === 0 ? "filter:drop-shadow(0 0 18px rgba(245,200,107,.6));" : "");
+      d.textContent = text;
+      d.style.opacity = "0";
+      d.style.transition = `opacity 1s ease ${i * .45}s`;
+      ov.appendChild(d);
+    });
+    const btn = document.createElement("button");
+    btn.textContent = "Продолжить жить в Астерии ✨";
+    btn.style.cssText = `margin-top:22px;padding:14px 26px;border-radius:16px;border:none;cursor:pointer;` +
+      `font-size:16px;font-weight:800;color:#241047;background:linear-gradient(120deg,#a67bff,#ff9ed2 55%,#f5c86b);` +
+      `box-shadow:0 10px 30px rgba(166,123,255,.45)`;
+    btn.addEventListener("pointerdown", () => {
+      ov.remove();
+      onDone();
+    });
+    ov.appendChild(btn);
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => [...ov.children].forEach(c => c.style.opacity = "1"));
+  }
+
+  /* ── NG+: заново прожить историю, оставив коллекции ── */
+  offerNewGamePlus(story) {
+    // кнопка в HUD после финала? Проще: у Дэна появляется вариант в диалоге.
+    // Реализовано в story.talkToDen (step 17): «Начать звёздный путь заново».
+  }
+
+  startNewGamePlus(story) {
+    const keep = {
+      fireflies: this.save.fireflies,
+      sparkles: this.save.sparkles,
+      chests: this.save.chests,
+      maxHpBonus: this.save.maxHpBonus,
+      cosmetics: this.save.cosmetics,
+      cloak: this.save.cloak,
+      potions: this.save.potions,
+      herbCarry: this.save.herbCarry,
+      ngPlus: (this.save.ngPlus ?? 0) + 1,
+    };
+    Object.keys(this.save).forEach(k => delete this.save[k]);
+    Object.assign(this.save, keep);
+    this.persist();
+    location.reload();
+  }
+}
+
+
 
 
 
@@ -84062,7 +84431,10 @@ combat.onDeath = () => {
   }, 1400);
 };
 combat.onWaveCleared = () => story.waveCleared();
-combat.onBossDefeated = () => story.bossDefeated();
+combat.onBossDefeated = (e) => {
+  if (e && e.tish) story.onTishDefeated();
+  else story.bossDefeated();
+};
 
 const puzzles = new Puzzles(scene, world, audio, world.glowTex, player, input);
 const events = new Events(scene, world, audio, world.glowTex, save, persist, player);
@@ -84083,6 +84455,11 @@ const weather = new Weather(scene, world, audio, player, save, persist, world.gl
 const npcs = new NPCs(scene, world, story.dialog);
 events.buildWardrobe(camp.x + 2.4, camp.z + 1.6);
 events.applyCloak(player);
+
+// M5: финал
+const finale = new Finale(scene, world, combat, audio, player, fox, events, npcs, save, persist, story.dialog);
+finale.input = input;
+story.finale = finale;
 
 /* ── камера-риг ── */
 const cam = { yaw: Math.PI, pitch: .42, dist: 7.2, cur: new THREE.Vector3(0, 5, 10) };
@@ -84258,6 +84635,7 @@ function frame() {
   events.update(dt, elapsed, player.position);
   weather.update(dt, elapsed, player.position, story);
   npcs.update(elapsed);
+  finale.update(dt, elapsed, player.position);
   events.wardrobe.star.rotation.y += dt * 1.2;
   updateCompass();
   den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;

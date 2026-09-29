@@ -10,6 +10,7 @@ import { Puzzles } from "./puzzles.js";
 import { Events } from "./events.js";
 import { Weather } from "./weather.js";
 import { NPCs } from "./npcs.js";
+import { Finale } from "./finale.js";
 
 /* ── сейвы ── */
 const SAVE_KEY = "asteria_save_v1";
@@ -92,7 +93,10 @@ combat.onDeath = () => {
   }, 1400);
 };
 combat.onWaveCleared = () => story.waveCleared();
-combat.onBossDefeated = () => story.bossDefeated();
+combat.onBossDefeated = (e) => {
+  if (e && e.tish) story.onTishDefeated();
+  else story.bossDefeated();
+};
 
 const puzzles = new Puzzles(scene, world, audio, world.glowTex, player, input);
 const events = new Events(scene, world, audio, world.glowTex, save, persist, player);
@@ -113,6 +117,11 @@ const weather = new Weather(scene, world, audio, player, save, persist, world.gl
 const npcs = new NPCs(scene, world, story.dialog);
 events.buildWardrobe(camp.x + 2.4, camp.z + 1.6);
 events.applyCloak(player);
+
+// M5: финал
+const finale = new Finale(scene, world, combat, audio, player, fox, events, npcs, save, persist, story.dialog);
+finale.input = input;
+story.finale = finale;
 
 /* ── камера-риг ── */
 const cam = { yaw: Math.PI, pitch: .42, dist: 7.2, cur: new THREE.Vector3(0, 5, 10) };
@@ -288,6 +297,7 @@ function frame() {
   events.update(dt, elapsed, player.position);
   weather.update(dt, elapsed, player.position, story);
   npcs.update(elapsed);
+  finale.update(dt, elapsed, player.position);
   events.wardrobe.star.rotation.y += dt * 1.2;
   updateCompass();
   den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;

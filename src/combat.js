@@ -128,15 +128,18 @@ export class Combat {
       crawler: { r: .38, hp: 3, speed: 2.3 },
       elite: { r: .55, hp: 7, speed: 1.7 },
       boss: { r: 1.1, hp: 40, speed: 1.85 },
+      tish: { r: 1.3, hp: 60, speed: 2.0 },
     }[kind];
     const { group, body, eyeL, eyeR } = buildMist(cfg.r, kind !== "crawler");
-    if (kind === "boss") {
-      // корона шипов Пожирателя Света
+    if (kind === "boss" || kind === "tish") {
+      // корона шипов (Тишь — выше и холоднее)
+      const crownC = kind === "tish" ? 0x1a2440 : 0x2e2050;
+      const crownE = kind === "tish" ? 0x5a8ae0 : 0x9b5bee;
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
         const spike = new THREE.Mesh(
           new THREE.ConeGeometry(.14, .8, 4),
-          mat(0x2e2050, { emissive: 0x9b5bee, emissiveIntensity: 1.2 })
+          mat(crownC, { emissive: crownE, emissiveIntensity: 1.2 })
         );
         spike.position.set(Math.cos(a) * cfg.r * .75, cfg.r * 1.5, Math.sin(a) * cfg.r * .75);
         spike.rotation.z = Math.cos(a) * .4;
@@ -153,11 +156,27 @@ export class Combat {
       obj: group, body, eyes: [eyeL, eyeR],
       r: cfg.r, hp: cfg.hp, maxHp: cfg.hp,
       speed: cfg.speed + (kind === "crawler" ? Math.random() * .5 : 0),
-      elite: kind === "elite", boss: kind === "boss",
+      elite: kind === "elite", boss: kind === "boss" || kind === "tish", tish: kind === "tish",
       seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
       // босс: фазы и атаки
       phase: 1, dashT: 0, dashDir: null, minionT: 5, ringT: 3,
     });
+  }
+
+  // союзный залп (Дэн в финальном бою)
+  allyShot(from, targetEnemy) {
+    if (!targetEnemy) return;
+    const spr = this.projPool.find(p => !p.visible);
+    if (!spr) return;
+    spr.visible = true;
+    spr.scale.setScalar(.5);
+    spr.material.opacity = 1;
+    spr.material.color.setHex(0xffd9a0);
+    spr.position.copy(from);
+    const dir = new THREE.Vector3().subVectors(
+      targetEnemy.obj.position.clone().add(new THREE.Vector3(0, targetEnemy.r, 0)), from
+    ).normalize();
+    this.projectiles.push({ spr, dir, speed: 18, life: 1.4, ally: true });
   }
 
   startWave(spawns) {
@@ -168,6 +187,11 @@ export class Combat {
 
   startBoss(pos) {
     this.spawnEnemy(pos, "boss");
+    this.onBossIntro && this.onBossIntro();
+  }
+
+  startTish(pos) {
+    this.spawnEnemy(pos, "tish");
     this.onBossIntro && this.onBossIntro();
   }
 
@@ -197,7 +221,7 @@ export class Combat {
         // очистить кольца
         for (const ring of this.rings) this.scene.remove(ring.mesh);
         this.rings.length = 0;
-        this.onBossDefeated && this.onBossDefeated();
+        this.onBossDefeated && this.onBossDefeated(e);
       } else {
         this.onEnemyKilled && this.onEnemyKilled(e);
       }
@@ -337,9 +361,10 @@ export class Combat {
     }
   }
 
-  /* ── босс: Пожиратель Света ── */
+  /* ── босс: Пожиратель Света / Тишь ── */
   _updateBoss(e, dt, elapsed, playerPos, dir, dist) {
-    e.phase = e.hp > 26 ? 1 : e.hp > 12 ? 2 : 3;
+    const hpFrac = e.hp / e.maxHp;
+    e.phase = hpFrac > .65 ? 1 : hpFrac > .3 ? 2 : 3;
     // контактный урон и погоня обрабатываются в общем цикле; здесь спец-атаки
     if (e.dashT > 0) {
       // фаза рывка
@@ -361,39 +386,43 @@ export class Combat {
       // рывок каждые ~4.5с
       e.dashCd = (e.dashCd ?? 4) - dt;
       if (e.dashCd <= 0 && dist > 3) {
-        e.dashCd = 4.5;
+        e.dashCd = e.tish ? 3.6 : 4.5;
         e.chargeT = .7; // телеграф: замирает и сжимается
         this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, 1.6, 0)), 0x6b4a8a, 6);
       }
-      // миньоны
+      // миньоны (Тишь призывает элиту)
       e.minionT -= dt;
       if (e.minionT <= 0) {
-        e.minionT = 8;
+        e.minionT = e.tish ? 9 : 8;
         const minions = this.enemies.filter(x => !x.boss).length;
-        if (minions < 2) {
+        if (minions < (e.tish ? 2 : 2)) {
           const a = Math.random() * Math.PI * 2;
           const p = e.obj.position.clone().add(new THREE.Vector3(Math.cos(a) * 2, 0, Math.sin(a) * 2));
-          this.spawnEnemy(p, "crawler");
+          this.spawnEnemy(p, e.tish ? "elite" : "crawler");
           this.world.burst(p.clone().add(new THREE.Vector3(0, .6, 0)), 0x9b5bee, 8);
         }
       }
     }
     if (e.phase >= 3) {
-      // кольца-волны
+      // кольца-волны (Тишь — двойные)
       e.ringT -= dt;
       if (e.ringT <= 0) {
-        e.ringT = 4.2;
-        const mesh = new THREE.Mesh(
-          new THREE.TorusGeometry(1, .07, 6, 48),
-          new THREE.MeshBasicMaterial({
-            color: 0xb98bff, transparent: true, opacity: .85,
-            blending: THREE.AdditiveBlending, depthWrite: false,
-          })
-        );
-        mesh.rotation.x = Math.PI / 2;
-        mesh.position.set(e.obj.position.x, .3, e.obj.position.z);
-        this.scene.add(mesh);
-        this.rings.push({ mesh, r: 1, x: e.obj.position.x, z: e.obj.position.z, hitDone: false });
+        e.ringT = e.tish ? 3.4 : 4.2;
+        const spawnRing = () => {
+          const mesh = new THREE.Mesh(
+            new THREE.TorusGeometry(1, .07, 6, 48),
+            new THREE.MeshBasicMaterial({
+              color: e.tish ? 0x5a8ae0 : 0xb98bff, transparent: true, opacity: .85,
+              blending: THREE.AdditiveBlending, depthWrite: false,
+            })
+          );
+          mesh.rotation.x = Math.PI / 2;
+          mesh.position.set(e.obj.position.x, .3, e.obj.position.z);
+          this.scene.add(mesh);
+          this.rings.push({ mesh, r: 1, x: e.obj.position.x, z: e.obj.position.z, hitDone: false });
+        };
+        spawnRing();
+        if (e.tish) setTimeout(spawnRing, 450);
         this.audio.blink();
       }
     }
