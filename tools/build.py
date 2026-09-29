@@ -67,7 +67,8 @@ def strip_module(src):
     return src
 
 game = "\n".join(strip_module(read(f"src/{f}")) for f in
-                 ["input.js", "player.js", "world.js", "entities.js", "combat.js", "story.js", "audio.js", "main.js"])
+                 ["input.js", "player.js", "world.js", "entities.js", "combat.js",
+                  "story.js", "audio.js", "puzzles.js", "events.js", "weather.js", "npcs.js", "main.js"])
 game = "const THREE = window.THREE;\n" + game
 
 # service worker не нужен в файле-сборке — вырезаем регистрацию целиком

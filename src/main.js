@@ -8,6 +8,8 @@ import { Story, toast } from "./story.js";
 import { Fox, buildDen, buildCamp, buildHerb } from "./entities.js";
 import { Puzzles } from "./puzzles.js";
 import { Events } from "./events.js";
+import { Weather } from "./weather.js";
+import { NPCs } from "./npcs.js";
 
 /* ── сейвы ── */
 const SAVE_KEY = "asteria_save_v1";
@@ -17,6 +19,7 @@ const save = {
   storyStep: 0, questHerbs: 0, herbCarry: 0, potions: 0,
   blinkUnlocked: false, potionRecipe: false,
   sparkles: 0, chests: [], maxHpBonus: 0, puzzles: {},
+  cosmetics: [0], cloak: 0,
 };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
@@ -105,6 +108,12 @@ const story = new Story({
 });
 story.ensureHerbMeshes(buildHerb);
 
+// M4: погода, жители, наряды
+const weather = new Weather(scene, world, audio, player, save, persist, world.glowTex);
+const npcs = new NPCs(scene, world, story.dialog);
+events.buildWardrobe(camp.x + 2.4, camp.z + 1.6);
+events.applyCloak(player);
+
 /* ── камера-риг ── */
 const cam = { yaw: Math.PI, pitch: .42, dist: 7.2, cur: new THREE.Vector3(0, 5, 10) };
 
@@ -159,7 +168,7 @@ startScreen.addEventListener("pointerdown", () => {
 
 /* ── взаимодействие: фонари, Дэн, котелок, загадки, сундуки, алтарь ── */
 let nearAct = null;
-const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲", mirror: "🪞", slab: "✦", bell: "🍄", chest: "💎", altar: "💠" };
+const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲", mirror: "🪞", slab: "✦", bell: "🍄", chest: "💎", altar: "💠", npc: "💬", wardrobe: "👗" };
 function checkInteract() {
   if (story.dialog.active || puzzles._slabOpen) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
   const px = player.position.x, pz = player.position.z;
@@ -173,6 +182,11 @@ function checkInteract() {
   if (pn) cand.push({ type: pn.kind, ref: pn.ref, d: Math.hypot(px - pn.x, pz - pn.z) });
   for (const c of events.chests) if (!c.opened) cand.push({ type: "chest", ref: c, d: Math.hypot(px - c.x, pz - c.z) });
   if (story.step >= 12) cand.push({ type: "altar", d: Math.hypot(px - events.altar.x, pz - events.altar.z) });
+  {
+    const n = npcs.near(player.position);
+    if (n) cand.push({ type: "npc", ref: n, d: Math.hypot(px - n.x, pz - n.z) });
+  }
+  cand.push({ type: "wardrobe", d: Math.hypot(px - events.wardrobe.x, pz - events.wardrobe.z) });
   cand.sort((a, b) => a.d - b.d);
   const best = cand.length && cand[0].d < 2.4 ? cand[0] : null;
   const key = best ? best.type : null;
@@ -196,6 +210,8 @@ function checkInteract() {
         break;
       case "chest": events.openChest(nearAct.ref); break;
       case "altar": events.useAltar(); break;
+      case "npc": npcs.talk(nearAct.ref, story.step); break;
+      case "wardrobe": events.useWardrobe(player); break;
     }
     nearAct = null;
     interactBtn.classList.remove("show");
@@ -270,6 +286,9 @@ function frame() {
   story.zoneTriggers(player.position);
   puzzles.update(elapsed);
   events.update(dt, elapsed, player.position);
+  weather.update(dt, elapsed, player.position, story);
+  npcs.update(elapsed);
+  events.wardrobe.star.rotation.y += dt * 1.2;
   updateCompass();
   den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;
   den.lamp.rotation.y = elapsed * 1.2;
@@ -319,4 +338,4 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !isLo
 }
 
 // отладочный доступ (тесты)
-window.__debug = { world, player, combat, story, fox, puzzles, events };
+window.__debug = { world, player, combat, story, fox, puzzles, events, weather, npcs };

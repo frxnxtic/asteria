@@ -12,11 +12,74 @@ export class Events {
     this.sparkles = save.sparkles ?? 0;
     this.maxHpBonus = save.maxHpBonus ?? 0;
 
+    // косметика: цвета плаща
+    this.cloaks = [
+      { hex: 0x241a4d, name: "Звёздная ночь", price: 0 },
+      { hex: 0xc2568a, name: "Закатная роза", price: 4 },
+      { hex: 0x2e7a5a, name: "Изумруд тумана", price: 4 },
+      { hex: 0xd9a03f, name: "Золотой час", price: 4 },
+      { hex: 0x8a2e3f, name: "Багрянец", price: 5 },
+    ];
+    this.owned = save.cosmetics ?? [0];
+    this.worn = save.cloak ?? 0;
+
     this._buildChests();
     this._buildAltar();
     this._starState = null; // активная падающая звезда
     this._nextStarAt = 150 + Math.random() * 90; // через 2.5–4 минуты игры
     this.onSparkles = null;
+  }
+
+  applyCloak(player) {
+    const c = this.cloaks[this.worn];
+    if (player.refs && player.refs.cloak) player.refs.cloak.material.color.setHex(c.hex);
+    player.cloakTrail = c.hex === 0x241a4d ? 0xc9b8ff : c.hex; // дефолтный шлейф — лаванда
+  }
+
+  /* ── рундук нарядов у костра ── */
+  buildWardrobe(x, z) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.9, .5, .55),
+      mat(0x7a5236, { roughness: 1 }));
+    body.position.y = .25;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(.92, .16, .57),
+      mat(0x8a6a45, { emissive: 0xff9ed2, emissiveIntensity: .3 }));
+    lid.position.y = .56;
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(.1),
+      mat(0xff9ed2, { emissive: 0xff9ed2, emissiveIntensity: 1.4 }));
+    star.position.set(0, .72, 0);
+    g.add(body, lid, star);
+    g.position.set(x, 0, z);
+    g.rotation.y = -.5;
+    this.scene.add(g);
+    this.world.colliders.push({ x, z, r: .5 });
+    this.wardrobe = { group: g, star, x, z };
+  }
+
+  useWardrobe(player) {
+    // следующий цвет по кругу
+    let next = (this.worn + 1) % this.cloaks.length;
+    if (!this.owned.includes(next)) {
+      const price = this.cloaks[next].price;
+      if (this.sparkles < price) {
+        toast(`«${this.cloaks[next].name}»: нужно ${price} 💎 (есть ${this.sparkles})`);
+        return;
+      }
+      this.sparkles -= price;
+      this.save.sparkles = this.sparkles;
+      this.owned.push(next);
+      this.save.cosmetics = this.owned;
+      this.onSparkles && this.onSparkles(this.sparkles);
+      toast(`Наряд получен: «${this.cloaks[next].name}» ✨`, 3200);
+    } else {
+      toast(`Плащ: «${this.cloaks[next].name}»`, 2200);
+    }
+    this.worn = next;
+    this.save.cloak = next;
+    this.applyCloak(player);
+    this.world.burst(new THREE.Vector3(this.wardrobe.x, 1, this.wardrobe.z), 0xff9ed2, 10);
+    this.audio.blip();
+    this.persist();
   }
 
   /* ── сундуки ── */

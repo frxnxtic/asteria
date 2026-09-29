@@ -112,10 +112,11 @@ export class Combat {
     // ручей: Блик не пускает в воду вне моста
     if (to.z < -27.2 && to.z > -34.4 && Math.abs(to.x) > 1.5) to.copy(from).addScaledVector(dir, 2);
     player.obj.position.copy(to);
-    // след из искр
+    // след из искр (цвет — под плащ героини)
+    const trail = player.cloakTrail ?? 0xc9b8ff;
     for (let i = 0; i <= 5; i++) {
       const p = from.clone().lerp(to, i / 5);
-      this.world.burst(p, 0xc9b8ff, 1);
+      this.world.burst(p, trail, 1);
     }
     this.audio.blink();
     return true;

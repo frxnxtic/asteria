@@ -730,7 +730,10 @@ export function createWorld(scene, renderer) {
       is.g.rotation.y += dt * .02;
     }
 
-    // светлячки: полёт + сбор
+    // светлячки: полёт + сбор (в дождь — крупнее и ярче, её любимое)
+    const rainBoost = world.firefliesBonus || 0;
+    ffMat.size = .55 + rainBoost * .3;
+    ffMat.opacity = .9 + rainBoost * .1;
     const pa = ffGeo.attributes.position;
     for (let i = 0; i < FF_N; i++) {
       const d = ffData[i];

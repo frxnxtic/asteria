@@ -81669,7 +81669,10 @@ function createWorld(scene, renderer) {
       is.g.rotation.y += dt * .02;
     }
 
-    // светлячки: полёт + сбор
+    // светлячки: полёт + сбор (в дождь — крупнее и ярче, её любимое)
+    const rainBoost = world.firefliesBonus || 0;
+    ffMat.size = .55 + rainBoost * .3;
+    ffMat.opacity = .9 + rainBoost * .1;
     const pa = ffGeo.attributes.position;
     for (let i = 0; i < FF_N; i++) {
       const d = ffData[i];
@@ -82046,10 +82049,11 @@ class Combat {
     // ручей: Блик не пускает в воду вне моста
     if (to.z < -27.2 && to.z > -34.4 && Math.abs(to.x) > 1.5) to.copy(from).addScaledVector(dir, 2);
     player.obj.position.copy(to);
-    // след из искр
+    // след из искр (цвет — под плащ героини)
+    const trail = player.cloakTrail ?? 0xc9b8ff;
     for (let i = 0; i <= 5; i++) {
       const p = from.clone().lerp(to, i / 5);
-      this.world.burst(p, 0xc9b8ff, 1);
+      this.world.burst(p, trail, 1);
     }
     this.audio.blink();
     return true;
@@ -83017,6 +83021,957 @@ class AudioEngine {
 }
 
 
+// Загадки Сумеречного леса: световые зеркала, плита созвездия, грибы-колокольчики.
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...opts });
+
+class Puzzles {
+  constructor(scene, world, audio, glowTex, player, input) {
+    this.scene = scene; this.world = world; this.audio = audio;
+    this.player = player; this.input = input;
+    this.onSolved = null; // (name) => void
+    this.solved = { mirrors: false, stars: false, bells: false };
+
+    this._buildMirrors();
+    this._buildStarSlab();
+    this._buildBells();
+  }
+
+  /* ════════ Загадка 1: зеркала ════════ */
+  _buildMirrors() {
+    const g = new THREE.Group();
+    // источник: кристалл на постаменте
+    const src = new THREE.Group();
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(.35, .45, .6, 6), mat(0x55506b));
+    ped.position.y = .3;
+    const crys = new THREE.Mesh(new THREE.OctahedronGeometry(.3),
+      mat(0x9bd4ff, { emissive: 0x6fb8ef, emissiveIntensity: 1.6 }));
+    crys.position.y = .95;
+    src.add(ped, crys);
+    src.position.set(-6, 0, -44);
+    this.srcPos = src.position.clone().add(new THREE.Vector3(0, .95, 0));
+
+    // два зеркала (поворотные призмы)
+    const mkMirror = (x, z, name) => {
+      const m = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(.22, .3, .5, 6), mat(0x4a3a5a));
+      base.position.y = .25;
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, .12),
+        mat(0xc9dff2, { metalness: .6, roughness: .25, emissive: 0x3a5a78, emissiveIntensity: .25 }));
+      plate.position.y = 1.35;
+      m.add(base, plate);
+      m.position.set(x, 0, z);
+      this.world.colliders.push({ x, z, r: .32 });
+      return { group: m, plate, name, angle: 0, x, z };
+    };
+    this.m1 = mkMirror(-1.5, -46, "m1");
+    this.m2 = mkMirror(4.5, -50, "m2");
+
+    // сегменты луча
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0x9bd4ff, transparent: true, opacity: .75,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const mkBeam = () => {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, 1, 6), beamMat);
+      b.visible = false;
+      return b;
+    };
+    this.beamA = mkBeam(); // источник → зеркало 1 (всегда виден)
+    this.beamB = mkBeam(); // зеркало 1 → зеркало 2
+    this.beamC = mkBeam(); // зеркало 2 → обелиск
+
+    g.add(src, this.m1.group, this.m2.group, this.beamA, this.beamB, this.beamC);
+    this.scene.add(g);
+    this._refreshBeams();
+  }
+
+  _aimBeam(beam, from, to) {
+    const dir = new THREE.Vector3().subVectors(to, from);
+    const len = dir.length();
+    beam.scale.set(1, len, 1);
+    beam.position.copy(from).addScaledVector(dir, .5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    beam.visible = true;
+  }
+
+  _refreshBeams() {
+    const m1p = this.m1.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+    const m2p = this.m2.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+    const obelisk = this.world.obeliskHeart.getWorldPosition(new THREE.Vector3());
+    this._aimBeam(this.beamA, this.srcPos, m1p);
+    // зеркало 1 повёрнуто (angle=1) → луч уходит к зеркалу 2
+    if (this.m1.angle === 1) this._aimBeam(this.beamB, m1p, m2p);
+    else this.beamB.visible = false;
+    // оба повёрнуты → луч в обелиск
+    if (this.m1.angle === 1 && this.m2.angle === 1) this._aimBeam(this.beamC, m2p, obelisk);
+    else this.beamC.visible = false;
+  }
+
+  _rotateMirror(m) {
+    if (this.solved.mirrors) return;
+    m.angle = 1 - m.angle;
+    m.group.rotation.y += Math.PI / 3;
+    this.audio.blip();
+    this.world.burst(m.group.position.clone().add(new THREE.Vector3(0, 1.3, 0)), 0x9bd4ff, 6);
+    this._refreshBeams();
+    if (this.m1.angle === 1 && this.m2.angle === 1) {
+      this.solved.mirrors = true;
+      this.world.obeliskHeart.material.emissiveIntensity = .6;
+      this.onSolved && this.onSolved("mirrors");
+    }
+  }
+
+  restore() {
+    if (this.solved.mirrors) {
+      this.m1.angle = 1; this.m2.angle = 1;
+      this.m1.group.rotation.y += Math.PI / 3;
+      this.m2.group.rotation.y += Math.PI / 3;
+      this._refreshBeams();
+    }
+  }
+
+  near() {
+    // ближайший интерактивный объект загадок: {kind, ref, x, z}
+    const p = this.player.position;
+    let best = null, bestD = 2.2;
+    if (!this.solved.mirrors) {
+      for (const m of [this.m1, this.m2]) {
+        const d = Math.hypot(p.x - m.x, p.z - m.z);
+        if (d < bestD) { bestD = d; best = { kind: "mirror", ref: m, x: m.x, z: m.z }; }
+      }
+    }
+    if (!this.solved.stars) {
+      const d = Math.hypot(p.x - this.slabPos.x, p.z - this.slabPos.z);
+      if (d < bestD) { bestD = d; best = { kind: "slab", x: this.slabPos.x, z: this.slabPos.z }; }
+    }
+    if (!this.solved.bells) {
+      for (const b of this.bells) {
+        const d = Math.hypot(p.x - b.x, p.z - b.z);
+        if (d < bestD) { bestD = d; best = { kind: "bell", ref: b, x: b.x, z: b.z }; }
+      }
+    }
+    return best;
+  }
+
+  interact(nearObj) {
+    if (nearObj.kind === "mirror") this._rotateMirror(nearObj.ref);
+    else if (nearObj.kind === "slab") this._openSlab();
+    else if (nearObj.kind === "bell") this._ringBell(nearObj.ref);
+  }
+
+  /* ════════ Загадка 2: плита созвездия ════════ */
+  _buildStarSlab() {
+    // каменная плита со звёздным узором
+    const slab = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, .4, 8), mat(0x55506b));
+    base.position.y = .2;
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, .1, 8),
+      mat(0x3a3455, { emissive: 0x4a3f7a, emissiveIntensity: .5 }));
+    top.position.y = .45;
+    slab.add(base, top);
+    this.slabPos = new THREE.Vector3(-8, 0, -54);
+    slab.position.copy(this.slabPos);
+    this.scene.add(slab);
+    this.world.colliders.push({ x: this.slabPos.x, z: this.slabPos.z, r: 1.2 });
+  }
+
+  _openSlab() {
+    if (this._slabOpen) return;
+    this._slabOpen = true;
+    this.input.setLocked(true);
+    // DOM-головоломка: 8 звёзд лисы, соединить в порядке
+    const stars = [
+      { u: .22, v: .28, label: "ухо" }, { u: .72, v: .30, label: "ухо" },
+      { u: .30, v: .50, label: "голова" }, { u: .14, v: .62, label: "нос" },
+      { u: .55, v: .48, label: "спина" }, { u: .70, v: .58, label: "спина" },
+      { u: .84, v: .44, label: "хвост" }, { u: .88, v: .66, label: "хвост" },
+    ];
+    // правильный порядок обхода (снизу вверх: нос→голова→ухо→...)
+    const order = [3, 2, 0, 1, 2, 4, 5, 7, 6]; // нос→голова→лев.ухо→прав.ухо→голова→спина1→спина2→хвост2→хвост1
+    const seq = [];
+
+    const ov = document.createElement("div");
+    ov.id = "slabOverlay";
+    ov.style.cssText = `position:absolute;inset:0;z-index:40;background:rgba(10,5,25,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;`;
+    ov.innerHTML = `
+      <div style="color:#f5c86b;font-weight:800;font-size:18px;letter-spacing:.05em">Созвездие Лисы</div>
+      <div style="color:#b7aed6;font-size:14px;text-align:center;max-width:420px">Коснись звёзд в порядке, каким видит их Искра.<br>Следующая звезда — тихо мерцает ✨</div>
+      <div id="slabBoard" style="position:relative;width:min(420px,86vw);height:min(300px,50vh);border:2px solid rgba(201,184,255,.3);border-radius:18px;background:radial-gradient(circle at 50% 40%, #241548, #120a2e);overflow:hidden"></div>
+      <div id="slabHint" style="color:#7d74a5;font-size:13px;min-height:18px"></div>`;
+    document.body.appendChild(ov);
+    const board = ov.querySelector("#slabBoard");
+
+    const els = stars.map((s, i) => {
+      const el = document.createElement("div");
+      el.style.cssText = `position:absolute;left:${s.u * 100}%;top:${(1 - s.v) * 100}%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;display:grid;place-items:center;font-size:20px;color:#fff;cursor:pointer;transition:transform .15s`;
+      el.textContent = "✦";
+      board.appendChild(el);
+      el.addEventListener("pointerdown", () => {
+        const expected = order[seq.length];
+        if (i === expected) {
+          seq.push(i);
+          el.style.color = "#f5c86b";
+          el.style.transform = "scale(1.35)";
+          el.style.textShadow = "0 0 12px #f5c86b";
+          this.audio.blip();
+          // линия
+          if (seq.length > 1) {
+            const a = stars[seq[seq.length - 2]], b = stars[i];
+            const line = document.createElement("div");
+            const x1 = a.u * 100, y1 = (1 - a.v) * 100, x2 = b.u * 100, y2 = (1 - b.v) * 100;
+            const len = Math.hypot(x2 - x1, y2 - y1);
+            const ang = Math.atan2(y2 - y1, x2 - x1);
+            line.style.cssText = `position:absolute;left:${x1}%;top:${y1}%;width:${len}%;height:2px;background:linear-gradient(90deg,#d9c07a,#f5e3a0);transform-origin:0 0;transform:rotate(${ang}rad);opacity:.8`;
+            board.appendChild(line);
+          }
+          if (seq.length >= order.length) {
+            setTimeout(() => this._solveSlab(ov), 500);
+          }
+        } else {
+          ov.querySelector("#slabHint").textContent = "Мерцание сбилось… начни снова 💫";
+          this.audio.hurt();
+          setTimeout(() => { seq.length = 0; board.querySelectorAll("div").forEach((d, idx) => { if (idx > 0 && d.style.color) { d.style.color = "#fff"; d.style.transform = ""; d.style.textShadow = ""; } }); }, 300);
+        }
+      });
+      return el;
+    });
+    // мерцание подсказки: следующая звезда пульсирует
+    this._slabTicker = setInterval(() => {
+      if (seq.length >= order.length) return;
+      const next = order[seq.length];
+      els.forEach((el, i) => el.classList.toggle("hint", i === next));
+      const hinted = els[next];
+      hinted.animate([{ opacity: .55 }, { opacity: 1 }], { duration: 700, iterations: 2 });
+    }, 1400);
+    els[order[0]].animate([{ opacity: .55 }, { opacity: 1 }], { duration: 700, iterations: 2 });
+  }
+
+  _solveSlab(ov) {
+    clearInterval(this._slabTicker);
+    ov.remove();
+    this._slabOpen = false;
+    this.input.setLocked(false);
+    this.solved.stars = true;
+    this.world.burst(this.slabPos.clone().add(new THREE.Vector3(0, 1, 0)), 0xf5c86b, 14);
+    this.audio.questDone();
+    this.onSolved && this.onSolved("stars");
+  }
+
+  /* ════════ Загадка 3: грибы-колокольчики ════════ */
+  _buildBells() {
+    // три гриба-колокольчика: красный, золотой, синий; порядок подсказан камнем
+    const colors = [
+      { hex: 0xe05a5a, name: "красный", note: 523.3 },
+      { hex: 0xf5c86b, name: "золотой", note: 659.3 },
+      { hex: 0x5a8ae0, name: "синий", note: 784 },
+    ];
+    const positions = [[9, -57], [11.5, -55], [9.5, -52.5]];
+    this.bells = colors.map((c, i) => {
+      const g = new THREE.Group();
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(.14, .18, .7, 6), mat(0xd8cbb0));
+      stem.position.y = .35;
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(.38, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        mat(c.hex, { emissive: c.hex, emissiveIntensity: .8 }));
+      cap.position.y = .68;
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(.07, 6, 5), mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 1.2 }));
+      dot.position.y = .9;
+      g.add(stem, cap, dot);
+      const [x, z] = positions[i];
+      g.position.set(x, 0, z);
+      this.scene.add(g);
+      this.world.colliders.push({ x, z, r: .3 });
+      return { group: g, cap, dot, x, z, color: c, idx: i, hit: false };
+    });
+    // камень-подсказка: три полоски в правильном порядке
+    const hintStone = new THREE.Group();
+    const st = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, .4), mat(0x55506b));
+    st.position.y = .75;
+    hintStone.add(st);
+    const order = [1, 0, 2]; // золотой → красный → синий
+    order.forEach((ci, i) => {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(.22, .22, .1),
+        mat(colors[ci].hex, { emissive: colors[ci].hex, emissiveIntensity: .9 }));
+      bar.position.set(-.3 + i * .3, .55 + i * .25, .24);
+      hintStone.add(bar);
+    });
+    hintStone.position.set(7, 0, -56.5);
+    hintStone.rotation.y = 2.4;
+    this.scene.add(hintStone);
+    this.world.colliders.push({ x: 7, z: -56.5, r: .7 });
+    this._bellSeq = [];
+  }
+
+  _ringBell(b) {
+    if (this.solved.bells) return;
+    // нота
+    const t0 = this.audio.ctx ? this.audio.ctx.currentTime : 0;
+    if (this.audio.ctx) this.audio._note(b.color.note, t0, 1.6, { gain: .1, att: .006, bus: this.audio.sfxBus });
+    b.dot.material.emissiveIntensity = 3;
+    setTimeout(() => b.dot.material.emissiveIntensity = 1.2, 400);
+    this.world.burst(new THREE.Vector3(b.x, 1, b.z), b.color.hex, 5);
+    const order = [1, 0, 2];
+    this._bellSeq.push(b.idx);
+    const ok = this._bellSeq.every((v, i) => v === order[i]);
+    if (!ok) {
+      this._bellSeq = [];
+      toastMsg("Колокольчики смолкли… посмотри на камень 🪨");
+      return;
+    }
+    if (this._bellSeq.length >= order.length) {
+      this.solved.bells = true;
+      this.audio.questDone();
+      toastMsg("Грибы поют! Святилище пробуждается ✨", 3200);
+      this.onSolved && this.onSolved("bells");
+    }
+  }
+
+  update(elapsed) {
+    // лёгкое покачивание грибов
+    if (this.bells) {
+      for (const b of this.bells) {
+        b.cap.rotation.z = Math.sin(elapsed * 1.4 + b.idx * 2) * .06;
+      }
+    }
+  }
+}
+
+// маленький локальный тост (не тянуть зависимость от story.js)
+let tT = null;
+function toastMsg(msg, ms = 2400) {
+  const el = document.getElementById("toast");
+  if (el) {
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(tT);
+    tT = setTimeout(() => el.classList.remove("show"), ms);
+  }
+}
+
+
+// Глобальные события M3: сундуки-секреты с блёстками, алтарь улучшений,
+// событие «Падающая звезда».
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...opts });
+
+class Events {
+  constructor(scene, world, audio, glowTex, save, persist, player) {
+    this.scene = scene; this.world = world; this.audio = audio;
+    this.save = save; this.persist = persist; this.player = player;
+    this.sparkles = save.sparkles ?? 0;
+    this.maxHpBonus = save.maxHpBonus ?? 0;
+
+    // косметика: цвета плаща
+    this.cloaks = [
+      { hex: 0x241a4d, name: "Звёздная ночь", price: 0 },
+      { hex: 0xc2568a, name: "Закатная роза", price: 4 },
+      { hex: 0x2e7a5a, name: "Изумруд тумана", price: 4 },
+      { hex: 0xd9a03f, name: "Золотой час", price: 4 },
+      { hex: 0x8a2e3f, name: "Багрянец", price: 5 },
+    ];
+    this.owned = save.cosmetics ?? [0];
+    this.worn = save.cloak ?? 0;
+
+    this._buildChests();
+    this._buildAltar();
+    this._starState = null; // активная падающая звезда
+    this._nextStarAt = 150 + Math.random() * 90; // через 2.5–4 минуты игры
+    this.onSparkles = null;
+  }
+
+  applyCloak(player) {
+    const c = this.cloaks[this.worn];
+    if (player.refs && player.refs.cloak) player.refs.cloak.material.color.setHex(c.hex);
+    player.cloakTrail = c.hex === 0x241a4d ? 0xc9b8ff : c.hex; // дефолтный шлейф — лаванда
+  }
+
+  /* ── рундук нарядов у костра ── */
+  buildWardrobe(x, z) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.9, .5, .55),
+      mat(0x7a5236, { roughness: 1 }));
+    body.position.y = .25;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(.92, .16, .57),
+      mat(0x8a6a45, { emissive: 0xff9ed2, emissiveIntensity: .3 }));
+    lid.position.y = .56;
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(.1),
+      mat(0xff9ed2, { emissive: 0xff9ed2, emissiveIntensity: 1.4 }));
+    star.position.set(0, .72, 0);
+    g.add(body, lid, star);
+    g.position.set(x, 0, z);
+    g.rotation.y = -.5;
+    this.scene.add(g);
+    this.world.colliders.push({ x, z, r: .5 });
+    this.wardrobe = { group: g, star, x, z };
+  }
+
+  useWardrobe(player) {
+    // следующий цвет по кругу
+    let next = (this.worn + 1) % this.cloaks.length;
+    if (!this.owned.includes(next)) {
+      const price = this.cloaks[next].price;
+      if (this.sparkles < price) {
+        toast(`«${this.cloaks[next].name}»: нужно ${price} 💎 (есть ${this.sparkles})`);
+        return;
+      }
+      this.sparkles -= price;
+      this.save.sparkles = this.sparkles;
+      this.owned.push(next);
+      this.save.cosmetics = this.owned;
+      this.onSparkles && this.onSparkles(this.sparkles);
+      toast(`Наряд получен: «${this.cloaks[next].name}» ✨`, 3200);
+    } else {
+      toast(`Плащ: «${this.cloaks[next].name}»`, 2200);
+    }
+    this.worn = next;
+    this.save.cloak = next;
+    this.applyCloak(player);
+    this.world.burst(new THREE.Vector3(this.wardrobe.x, 1, this.wardrobe.z), 0xff9ed2, 10);
+    this.audio.blip();
+    this.persist();
+  }
+
+  /* ── сундуки ── */
+  _buildChests() {
+    const spots = [
+      { x: -18, z: -50, hint: "под корнями великана" },
+      { x: 20, z: -56, hint: "за тыквенным холмом" },
+      { x: -24, z: -70, hint: "в тени двух сестёр-елей" },
+      { x: 26, z: -74, hint: "у самой кромки леса" },
+      { x: -12, z: -34, hint: "у кристальной гривы" },
+    ];
+    this.chests = spots.map((s, i) => {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(.8, .5, .55),
+        mat(0x6b4a2f, { roughness: 1 }));
+      body.position.y = .25;
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(.82, .22, .57),
+        mat(0x7a5236, { emissive: 0xffd27f, emissiveIntensity: .35 }));
+      lid.position.y = .58;
+      const lock = new THREE.Mesh(new THREE.OctahedronGeometry(.09),
+        mat(0xffe9a0, { emissive: 0xffd27f, emissiveIntensity: 1.5 }));
+      lock.position.set(0, .5, .3);
+      g.add(body, lid, lock);
+      g.position.set(s.x, 0, s.z);
+      g.rotation.y = Math.random() * Math.PI * 2;
+      this.scene.add(g);
+      this.world.colliders.push({ x: s.x, z: s.z, r: .5 });
+      const opened = (this.save.chests ?? []).includes(i);
+      if (opened) { lid.rotation.x = -1.9; lid.position.z = -.35; }
+      return { ...s, i, group: g, lid, lock, opened };
+    });
+  }
+
+  openChest(c) {
+    if (c.opened) return false;
+    c.opened = true;
+    c.lid.rotation.x = -1.9;
+    c.lid.position.z = -.35;
+    const got = 2 + (Math.random() < .5 ? 1 : 0);
+    this.addSparkles(got);
+    this.world.burst(c.group.position.clone().add(new THREE.Vector3(0, .8, 0)), 0xf5c86b, 14);
+    this.audio.questDone();
+    this.save.chests = this.chests.filter(x => x.opened).map(x => x.i);
+    this.persist();
+    toast(`Сундук тайника: +${got} блёстки 💎`);
+    return true;
+  }
+
+  /* ── блёстки ── */
+  addSparkles(n) {
+    this.sparkles += n;
+    this.save.sparkles = this.sparkles;
+    this.onSparkles && this.onSparkles(this.sparkles);
+    this.persist();
+  }
+
+  /* ── алтарь созвездия (святилище): 💎→+1 макс HP ── */
+  _buildAltar() {
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.5, .65, .35, 6), mat(0x55506b));
+    base.position.y = .17;
+    const orb = new THREE.Mesh(new THREE.OctahedronGeometry(.28),
+      mat(0xc9b8ff, { emissive: 0x8b6bff, emissiveIntensity: 1.2 }));
+    orb.position.y = .75;
+    g.add(base, orb);
+    g.position.set(this.world.sanctuary.x + 4.5, 0, this.world.sanctuary.z + 4.5);
+    this.scene.add(g);
+    this.world.colliders.push({ x: g.position.x, z: g.position.z, r: .45 });
+    this.altar = { group: g, orb, x: g.position.x, z: g.position.z };
+  }
+
+  useAltar() {
+    if (this.maxHpBonus >= 2) { toast("Алтарь отдал всё: звёзды уже в тебе ✨"); return; }
+    if (this.sparkles < 6) { toast(`Нужно 6 блёсток 💎 (есть ${this.sparkles})`); return; }
+    this.sparkles -= 6;
+    this.save.sparkles = this.sparkles;
+    this.maxHpBonus++;
+    this.save.maxHpBonus = this.maxHpBonus;
+    this.onSparkles && this.onSparkles(this.sparkles);
+    this.world.burst(this.altar.group.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xc9b8ff, 16);
+    this.audio.questDone();
+    this.persist();
+    this.onAltarUp && this.onAltarUp(this.maxHpBonus);
+    toast("Сердце героини ярче: +1 макс HP ✦", 3200);
+  }
+
+  /* ── падающая звезда ── */
+  update(dt, elapsed, playerPos) {
+    this._lastElapsed = elapsed;
+    this.altar.orb.rotation.y += dt;
+    this.altar.orb.material.emissiveIntensity = 1 + Math.sin(elapsed * 2.2) * .4;
+
+    if (!this._starState && elapsed > this._nextStarAt) {
+      this._spawnStar(elapsed);
+    }
+    const st = this._starState;
+    if (st) {
+      st.ttl -= dt;
+      st.beam.material.opacity = .5 + Math.sin(elapsed * 5) * .2;
+      st.beam.scale.x = st.beam.scale.z = 1 + Math.sin(elapsed * 3) * .12;
+      if (playerPos) {
+        const d = Math.hypot(playerPos.x - st.x, playerPos.z - st.z);
+        if (d < 2.6) {
+          // собрана!
+          this.addSparkles(2 + (Math.random() < .5 ? 2 : 0));
+          this.world.burst(new THREE.Vector3(st.x, 1.5, st.z), 0xffe9a0, 18);
+          this.audio.questDone();
+          toast("Желание загадано: падающая звезда твоя ✨", 3200);
+          this._removeStar();
+        }
+      }
+      if (st && st.ttl <= 0) {
+        this._removeStar();
+        toast("Звезда погасла… другая обязательно упадёт 💫");
+      }
+    }
+  }
+
+  _spawnStar(elapsed) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 14 + Math.random() * 30;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r * .8 - 12;
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(.5, 1.1, 26, 10, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe9a0, transparent: true, opacity: .6,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      })
+    );
+    beam.position.set(x, 13, z);
+    this.scene.add(beam);
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(1.6, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xf5c86b, transparent: true, opacity: .5,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.set(x, .05, z);
+    this.scene.add(halo);
+    this._starState = { x, z, beam, halo, ttl: 75 };
+    this.audio.lantern();
+    toast("🌟 Падающая звезда! Успей к сиянию за 75 секунд");
+  }
+
+  _removeStar() {
+    const st = this._starState;
+    if (!st) return;
+    this.scene.remove(st.beam, st.halo);
+    this._starState = null;
+    this._nextStarAt = (this._lastElapsed || 0) + 180 + Math.random() * 120;
+  }
+}
+
+let tT = null;
+function toast(msg, ms = 2800) {
+  const el = document.getElementById("toast");
+  if (el) {
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(tT);
+    tT = setTimeout(() => el.classList.remove("show"), ms);
+  }
+}
+
+// Погода: дождь с зарницами, звук, дождевые грибы и танец светлячков.
+
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...opts });
+
+class Weather {
+  constructor(scene, world, audio, player, save, persist, glowTex) {
+    this.scene = scene; this.world = world; this.audio = audio;
+    this.player = player; this.save = save; this.persist = persist;
+
+    // цикл погоды
+    this.rainF = 0;          // 0..1 интенсивность
+    this.rainTarget = 0;
+    this.nextChangeAt = 60 + Math.random() * 90; // по elapsed
+    this.rainEndsAt = 0;
+    this.nextFlashAt = 0;
+
+    // капли: LineSegments в боксе вокруг игрока
+    const N = 520;
+    const pos = new Float32Array(N * 6);
+    this.drops = [];
+    for (let i = 0; i < N; i++) {
+      const x = (Math.random() - .5) * 34, z = (Math.random() - .5) * 34;
+      const y = Math.random() * 15;
+      this.drops.push({ x, y, z, sp: 15 + Math.random() * 7 });
+      pos.set([x, y, z, x + .05, y + .55, z], i * 6);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    this.rainMat = new THREE.LineBasicMaterial({
+      color: 0xa8c8e8, transparent: true, opacity: 0,
+    });
+    this.rainMesh = new THREE.LineSegments(geo, this.rainMat);
+    this.rainMesh.frustumCulled = false;
+    scene.add(this.rainMesh);
+
+    // вспышка зарницы
+    this.flashEl = document.createElement("div");
+    this.flashEl.style.cssText =
+      "position:absolute;inset:0;z-index:6;pointer-events:none;opacity:0;transition:opacity .12s;" +
+      "background:radial-gradient(120% 100% at 50% 0%, rgba(200,215,255,.75), rgba(200,215,255,0) 70%)";
+    document.body.appendChild(this.flashEl);
+
+    // звук дождя
+    this._rainNoise = null;
+
+    // дождевые грибы
+    this.mushrooms = [];
+    this._shroomSpot = () => {
+      const a = Math.random() * Math.PI * 2;
+      const r = 8 + Math.random() * 40;
+      return { x: Math.cos(a) * r, z: Math.sin(a) * r };
+    };
+
+    // танец светлячков
+    this.swarm = null;
+    this.nextSwarmAt = 100 + Math.random() * 100;
+  }
+
+  _ensureRainSound() {
+    if (this._rainNoise || !this.audio.ctx) return;
+    const ctx = this.audio.ctx;
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      // розовый-ish шум
+      const w = Math.random() * 2 - 1;
+      last = (last + .03 * w) / 1.03;
+      d[i] = last * 3.2;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 1400;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(f).connect(g).connect(this.audio.master);
+    src.start();
+    this._rainNoise = g;
+  }
+
+  update(dt, elapsed, playerPos, story) {
+    // переключение погоды
+    if (this.rainTarget === 0 && elapsed > this.nextChangeAt) {
+      this.rainTarget = 1;
+      this.rainEndsAt = elapsed + 50 + Math.random() * 45;
+      toastW("Капли по крышам Гавани… дождь 🌧");
+      this._ensureRainSound();
+    }
+    if (this.rainTarget === 1 && elapsed > this.rainEndsAt) {
+      this.rainTarget = 0;
+      this.nextChangeAt = elapsed + 110 + Math.random() * 130;
+      toastW("Дождь стихает. Небо снова звенит ✨");
+    }
+    this.rainF += (this.rainTarget - this.rainF) * Math.min(1, dt * .5);
+    if (this._rainNoise) this._rainNoise.gain.value = this.rainF * .12;
+
+    // капли
+    this.rainMat.opacity = this.rainF * .5;
+    if (this.rainF > 0.02) {
+      this.rainMesh.position.set(playerPos.x, 0, playerPos.z);
+      const pa = this.rainMesh.geometry.attributes.position;
+      for (let i = 0; i < this.drops.length; i++) {
+        const d = this.drops[i];
+        d.y -= d.sp * dt;
+        if (d.y < 0) d.y = 14 + Math.random() * 2;
+        const o = i * 6;
+        pa.array[o + 1] = d.y;
+        pa.array[o + 4] = d.y + .55;
+      }
+      pa.needsUpdate = true;
+    }
+
+    // зарницы
+    if (this.rainF > .6 && elapsed > this.nextFlashAt) {
+      this.nextFlashAt = elapsed + 6 + Math.random() * 9;
+      this.flashEl.style.opacity = String(.35 + Math.random() * .4);
+      setTimeout(() => { this.flashEl.style.opacity = "0"; }, 110);
+      setTimeout(() => { this.flashEl.style.opacity = String(.2 + Math.random() * .25); }, 190);
+      setTimeout(() => { this.flashEl.style.opacity = "0"; }, 300);
+    }
+
+    // туман плотнее в дождь (мягко, поверх мира)
+    if (this.world._baseFog === undefined) this.world._baseFog = null;
+    // светлячки ярче в дождь
+    this.world.fireflies && (this.world.firefliesBonus = this.rainF);
+
+    // дождевые грибы: спавн в дождь, до 3 одновременно
+    if (this.rainF > .5 && this.mushrooms.length < 3 && Math.random() < dt * .12) {
+      this._spawnShroom(elapsed);
+    }
+    for (let i = this.mushrooms.length - 1; i >= 0; i--) {
+      const m = this.mushrooms[i];
+      m.cap.rotation.z = Math.sin(elapsed * 2 + m.seed) * .1;
+      m.cap.material.emissiveIntensity = 1.4 + Math.sin(elapsed * 3.4 + m.seed) * .6;
+      if (playerPos) {
+        const d = Math.hypot(playerPos.x - m.x, playerPos.z - m.z);
+        if (d < 1.3) {
+          // собран: +1 зелье (лимит 3)
+          const st = story;
+          if (st && st.potions < 3) {
+            st.potions++;
+            st.save.potions = st.potions;
+            st.refreshPotion();
+            st.persist();
+            this.world.burst(new THREE.Vector3(m.x, .6, m.z), 0x9bd4ff, 8);
+            this.audio.herb();
+            toastW("Дождевой гриб: зелье росы в сумке! 🧪");
+          } else {
+            toastW("Зелья полны — гриб останется лесу 🍄");
+          }
+          this.scene.remove(m.group);
+          this.mushrooms.splice(i, 1);
+        }
+      }
+    }
+
+    // танец светлячков: рой на 20 секунд
+    if (!this.swarm && elapsed > this.nextSwarmAt) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 10 + Math.random() * 25;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      const N = 40;
+      const pos = new Float32Array(N * 3);
+      const pts = [];
+      for (let i = 0; i < N; i++) {
+        const p = { x: x + (Math.random() - .5) * 5, y: .8 + Math.random() * 2.2, z: z + (Math.random() - .5) * 5, s: Math.random() * 9 };
+        pts.push(p);
+        pos.set([p.x, p.y, p.z], i * 3);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const pm = new THREE.PointsMaterial({
+        color: 0xffe9a0, size: .8, map: this.world.glowTex, transparent: true,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const mesh = new THREE.Points(g, pm);
+      this.scene.add(mesh);
+      this.swarm = { mesh, pts, until: elapsed + 22, x, z, base: pos.slice() };
+      toastW("Танец светлячков начинается… ✨");
+      this.audio.lantern();
+    }
+    if (this.swarm) {
+      const s = this.swarm;
+      const pa = s.mesh.geometry.attributes.position;
+      for (let i = 0; i < s.pts.length; i++) {
+        const p = s.pts[i];
+        const t = elapsed + p.s;
+        pa.setXYZ(i,
+          p.x + Math.sin(t * 1.3) * 1.6,
+          p.y + Math.sin(t * 2.1) * .5,
+          p.z + Math.cos(t * 1.1) * 1.6
+        );
+      }
+      pa.needsUpdate = true;
+      // сбор: близко к центру роя — светлячки пачкой
+      if (playerPos) {
+        const d = Math.hypot(playerPos.x - s.x, playerPos.z - s.z);
+        if (d < 3.2) {
+          const got = 6;
+          this.world.firefliesCollected += got;
+          this.world.onCollect && this.world.onCollect(this.world.firefliesCollected);
+          this.world.burst(new THREE.Vector3(s.x, 1.5, s.z), 0xffe9a0, 16);
+          this.audio.collect();
+          toastW(`Танец светлячков: +${got} ✨`);
+          this.scene.remove(s.mesh);
+          this.swarm = null;
+          this.nextSwarmAt = elapsed + 160 + Math.random() * 120;
+        }
+      }
+      if (this.swarm && elapsed > s.until) {
+        this.scene.remove(s.mesh);
+        this.swarm = null;
+        this.nextSwarmAt = elapsed + 160 + Math.random() * 120;
+      }
+    }
+  }
+
+  _spawnShroom(elapsed) {
+    const { x, z } = this._shroomSpot();
+    const g = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.1, .14, .5, 6), mat(0xd8e8f2));
+    stem.position.y = .25;
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(.3, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      mat(0x7ab8e8, { emissive: 0x4a9ae0, emissiveIntensity: 1.5 }));
+    cap.position.y = .5;
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      color: 0x9bd4ff, transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    halo.scale.setScalar(1.3);
+    halo.position.y = .6;
+    g.add(stem, cap, halo);
+    g.position.set(x, 0, z);
+    this.scene.add(g);
+    this.mushrooms.push({ group: g, cap, x, z, seed: Math.random() * 9 });
+  }
+}
+
+let tT = null;
+function toastW(msg, ms = 3000) {
+  const el = document.getElementById("toast");
+  if (el) {
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(tT);
+    tT = setTimeout(() => el.classList.remove("show"), ms);
+  }
+}
+
+
+// Жители Ночной Гавани: трактирщица Мила и звездочёт Борей.
+const mat = (color, opts = {}) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...opts });
+
+function buildNPC({ skin = 0xffd9b8, hairC, topC, bottomC, apron = false, hat = false, beard = false }) {
+  const g = new THREE.Group();
+  const skinM = mat(skin), hairM = mat(hairC), topM = mat(topC), botM = mat(bottomC);
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(.09, .1, .45, 6), botM);
+  legs.position.y = .22;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(.15, .2, .5, 8), topM);
+  body.position.y = .7;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 10), skinM);
+  head.position.y = 1.1;
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(.14, 10, 8, 0, Math.PI * 2, 0, Math.PI * .62), hairM);
+  hair.position.y = 1.11;
+  g.add(legs, body, head, hair);
+  if (apron) {
+    const ap = new THREE.Mesh(new THREE.BoxGeometry(.24, .34, .02), mat(0xe8dcc2));
+    ap.position.set(0, .62, .18);
+    g.add(ap);
+  }
+  if (hat) {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.19, .19, .03, 10), hairM);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(.12, .24, 8), hairM);
+    brim.position.y = 1.22; top.position.y = 1.34;
+    g.add(brim, top);
+  }
+  if (beard) {
+    const b = new THREE.Mesh(new THREE.ConeGeometry(.09, .2, 6), mat(0xd8d8e0));
+    b.rotation.x = Math.PI;
+    b.position.set(0, .98, .1);
+    g.add(b);
+  }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+
+class NPCs {
+  constructor(scene, world, dialog) {
+    this.dialog = dialog;
+    this.list = [];
+
+    // Мила — трактирщица у дома с тёплыми окнами
+    const mila = buildNPC({ hairC: 0x8a4a2f, topC: 0xb5563f, bottomC: 0x4a3f5a, apron: true });
+    mila.position.set(10.5, 0, 10);
+    mila.rotation.y = Math.PI + .4;
+    scene.add(mila);
+    world.colliders.push({ x: 10.5, z: 10, r: .35 });
+
+    // Борей — звездочёт с телескопом у восточного фонаря
+    const borya = buildNPC({ hairC: 0x3a3a48, topC: 0x2e4a5a, bottomC: 0x33283f, hat: true, beard: true });
+    borya.position.set(17, 0, 10.5);
+    borya.rotation.y = -2.2;
+    scene.add(borya);
+    world.colliders.push({ x: 17, z: 10.5, r: .35 });
+    // телескоп на треноге
+    const scope = new THREE.Group();
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(.08, .11, 1.1, 8),
+      mat(0x8a6a3c, { metalness: .4, roughness: .5 }));
+    tube.rotation.z = Math.PI / 2.6;
+    tube.position.y = 1.25;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(.02, .03, 1.2, 5), mat(0x5a4030));
+      leg.position.set(Math.cos(a) * .25, .6, Math.sin(a) * .25);
+      leg.rotation.z = Math.cos(a) * .3;
+      leg.rotation.x = Math.sin(a) * .3;
+      scope.add(leg);
+    }
+    scope.add(tube);
+    scope.position.set(18, 0, 9.5);
+    scene.add(scope);
+    world.colliders.push({ x: 18, z: 9.5, r: .3 });
+
+    this.list.push(
+      { name: "Мила", avatar: "👩‍🍳", obj: mila, x: 10.5, z: 10, seed: 0 },
+      { name: "Борей", avatar: "🧙‍♂️", obj: borya, x: 17, z: 10.5, seed: 1 },
+    );
+  }
+
+  // реплики зависят от прогресса (step из story)
+  talk(npc, step) {
+    const lines = {
+      Мила: step >= 12 ? [
+        "Созвездие Лисы вернулось! Вся Гавань не спала — смотрели на небо. Горячий сидр за счёт заведения! 🍷",
+        "Дэн опять весь день у котелка. Покорми его, а? Волнуется он.",
+      ] : step >= 3 ? [
+        "Мгла у самых ворот, а ты уже зажигаешь наши фонарики. Спасибо, хранительница.",
+        "После дождя приходи — у меня как раз пряники звёздной глазури.",
+        "В дождь светлячки светятся ярче. Проверь сама!",
+      ] : [
+        "Добро пожаловать в Гавань, милая! Ты как раз к полднику.",
+        "Слышала, звёзды начали гаснуть… страшно даже в тёплой кухне.",
+      ],
+      Борей: step >= 12 ? [
+        "Хм! Созвездие Лисы — с наклоном в четверть луча точнее, чем в мои таблицы. Ты хорошо поработала, девочка.",
+        "Следом должна гаснуть чаша Весов… нет-нет, не сейчас. Но готовься.",
+      ] : step >= 6 ? [
+        "Лес дышит тревожно. Обелиск святилища помнит больше, чем я за сорок лет.",
+        "Тишь — не тьма, запомни. Тьма боится света. Тишь его… забывает.",
+      ] : [
+        "Пф! Юная хозяйка посоха. Не загораживай мне телескоп.",
+        "Звёзды гаснут, а все пекут пироги. Безумный мир.",
+      ],
+    };
+    const pool = lines[npc.name] || ["…"];
+    const line = pool[(Math.random() * pool.length) | 0];
+    this.dialog.open(npc.name, npc.avatar, [line]);
+  }
+
+  near(playerPos) {
+    let best = null, bestD = 2.2;
+    for (const n of this.list) {
+      const d = Math.hypot(playerPos.x - n.x, playerPos.z - n.z);
+      if (d < bestD) { bestD = d; best = n; }
+    }
+    return best;
+  }
+
+  update(elapsed) {
+    for (const n of this.list) {
+      n.obj.rotation.z = Math.sin(elapsed * .9 + n.seed * 3) * .015;
+    }
+  }
+}
+
+
+
+
 
 
 
@@ -83034,6 +83989,7 @@ const save = {
   storyStep: 0, questHerbs: 0, herbCarry: 0, potions: 0,
   blinkUnlocked: false, potionRecipe: false,
   sparkles: 0, chests: [], maxHpBonus: 0, puzzles: {},
+  cosmetics: [0], cloak: 0,
 };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
@@ -83122,6 +84078,12 @@ const story = new Story({
 });
 story.ensureHerbMeshes(buildHerb);
 
+// M4: погода, жители, наряды
+const weather = new Weather(scene, world, audio, player, save, persist, world.glowTex);
+const npcs = new NPCs(scene, world, story.dialog);
+events.buildWardrobe(camp.x + 2.4, camp.z + 1.6);
+events.applyCloak(player);
+
 /* ── камера-риг ── */
 const cam = { yaw: Math.PI, pitch: .42, dist: 7.2, cur: new THREE.Vector3(0, 5, 10) };
 
@@ -83176,7 +84138,7 @@ startScreen.addEventListener("pointerdown", () => {
 
 /* ── взаимодействие: фонари, Дэн, котелок, загадки, сундуки, алтарь ── */
 let nearAct = null;
-const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲", mirror: "🪞", slab: "✦", bell: "🍄", chest: "💎", altar: "💠" };
+const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲", mirror: "🪞", slab: "✦", bell: "🍄", chest: "💎", altar: "💠", npc: "💬", wardrobe: "👗" };
 function checkInteract() {
   if (story.dialog.active || puzzles._slabOpen) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
   const px = player.position.x, pz = player.position.z;
@@ -83190,6 +84152,11 @@ function checkInteract() {
   if (pn) cand.push({ type: pn.kind, ref: pn.ref, d: Math.hypot(px - pn.x, pz - pn.z) });
   for (const c of events.chests) if (!c.opened) cand.push({ type: "chest", ref: c, d: Math.hypot(px - c.x, pz - c.z) });
   if (story.step >= 12) cand.push({ type: "altar", d: Math.hypot(px - events.altar.x, pz - events.altar.z) });
+  {
+    const n = npcs.near(player.position);
+    if (n) cand.push({ type: "npc", ref: n, d: Math.hypot(px - n.x, pz - n.z) });
+  }
+  cand.push({ type: "wardrobe", d: Math.hypot(px - events.wardrobe.x, pz - events.wardrobe.z) });
   cand.sort((a, b) => a.d - b.d);
   const best = cand.length && cand[0].d < 2.4 ? cand[0] : null;
   const key = best ? best.type : null;
@@ -83213,6 +84180,8 @@ function checkInteract() {
         break;
       case "chest": events.openChest(nearAct.ref); break;
       case "altar": events.useAltar(); break;
+      case "npc": npcs.talk(nearAct.ref, story.step); break;
+      case "wardrobe": events.useWardrobe(player); break;
     }
     nearAct = null;
     interactBtn.classList.remove("show");
@@ -83287,6 +84256,9 @@ function frame() {
   story.zoneTriggers(player.position);
   puzzles.update(elapsed);
   events.update(dt, elapsed, player.position);
+  weather.update(dt, elapsed, player.position, story);
+  npcs.update(elapsed);
+  events.wardrobe.star.rotation.y += dt * 1.2;
   updateCompass();
   den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;
   den.lamp.rotation.y = elapsed * 1.2;
@@ -83331,7 +84303,7 @@ addEventListener("pagehide", persist);
 
 
 // отладочный доступ (тесты)
-window.__debug = { world, player, combat, story, fox, puzzles, events };
+window.__debug = { world, player, combat, story, fox, puzzles, events, weather, npcs };
 
 } catch (e) { var __err = document.createElement("pre");__err.style.cssText = "color:#ff7a9e;padding:16px;white-space:pre-wrap;font-size:12px";__err.textContent = "ОШИБКА СБОРКИ: " + (e && e.stack || e);document.body.prepend(__err); }
 </script>
