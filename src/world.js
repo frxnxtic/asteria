@@ -1,9 +1,10 @@
 import * as THREE from "../vendor/three.module.js";
 
-// Ночная Гавань: небо-купол, звёзды, луна, площадь, дома, мост через ручей,
-// фонари (интерактив), светлячки (коллекция), кристаллы, плавучие островки.
+// Ночная Гавань + Сумеречный лес: небо-купол, звёзды, луна, площадь, дома,
+// мост через ручей, фонари (интерактив), светлячки (коллекция), кристаллы,
+// плавучие островки, лес с святилищем и созвездия на небе.
 const DAY_LEN = 480; // полный цикл день/ночь, сек
-const WORLD_R = 55;
+const WORLD_R = 95;
 
 /* ── процедурные текстуры ── */
 function canvasTex(size, painter, repeat = 1) {
@@ -158,7 +159,7 @@ export function createWorld(scene, renderer) {
 
   /* ── земля ── */
   const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(140, 48),
+    new THREE.CircleGeometry(240, 56),
     new THREE.MeshStandardMaterial({ map: grassTex(), color: 0xb8c8b8, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
@@ -357,13 +358,227 @@ export function createWorld(scene, renderer) {
     crystals.push(m);
   }
 
+  /* ── Сумеречный лес ── */
+  const autumnCrowns = [0xc9752e, 0xd98a3f, 0xb5563f, 0xe0a04f, 0x9a5a30, 0xd4684a];
+  const mushMat = new THREE.MeshStandardMaterial({ color: 0xc9e8ff, emissive: 0x6fb8ef, emissiveIntensity: 1.2 });
+  const leafMats = [0xa8662e, 0xc17a38, 0x8f5230].map(c =>
+    new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  const forestTrees = [];
+  for (let i = 0; i < 34; i++) {
+    const a = (i / 34) * Math.PI * 2;
+    const rr = 6 + ((i * 13.7) % 26);
+    let x = Math.cos(a * 3.1 + i) * rr;
+    let z = -44 - ((i * 9.3) % 44);
+    // не ставим на тропу (|x|<3) и на поляну святилища
+    if (Math.abs(x) < 3.2 && z > -66) x += x >= 0 ? 3.5 : -3.5;
+    if (Math.hypot(x, z + 68) < 13) continue;
+    const s = 1.1 + ((i * 7.1) % 10) / 8;
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.16 * s, .24 * s, 1.6 * s, 6), trunkMat);
+    trunk.position.y = .8 * s; trunk.castShadow = true;
+    const crown = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.25 * s, 0),
+      new THREE.MeshStandardMaterial({ color: autumnCrowns[i % autumnCrowns.length], flatShading: true, roughness: 1 })
+    );
+    crown.position.y = 2.5 * s; crown.castShadow = true;
+    crown.rotation.set(i, i * 2.3, 0);
+    const crown2 = new THREE.Mesh(new THREE.IcosahedronGeometry(.8 * s, 0), crown.material);
+    crown2.position.set(.5 * s, 3.1 * s, .3 * s);
+    crown2.rotation.set(i * 3, i, 0);
+    g.add(trunk, crown, crown2);
+    // гриб-фонарик у корней
+    if (i % 3 === 0) {
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(.14, .12, 6), mushMat);
+      cap.position.set(.4 * s, .1, .3 * s);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04, .05, .18, 5),
+        new THREE.MeshStandardMaterial({ color: 0xd8cbb0, flatShading: true }));
+      stem.position.set(.4 * s, .06, .3 * s);
+      g.add(cap, stem);
+    }
+    g.position.set(x, 0, z);
+    scene.add(g);
+    addCol(x, z, .55 * s);
+    forestTrees.push(g);
+  }
+  // тыквы на полянах
+  const pumpkinMat = new THREE.MeshStandardMaterial({ color: 0xe08a3f, flatShading: true, roughness: 1 });
+  const pumpkinGlowMat = new THREE.MeshStandardMaterial({ color: 0xffd27f, emissive: 0xff9a3f, emissiveIntensity: 1.5 });
+  for (let i = 0; i < 7; i++) {
+    const p = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.32, 8, 6), pumpkinMat);
+    body.scale.y = .78;
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(.03, .04, .12, 5), trunkMat);
+    tail.position.y = .28;
+    p.add(body, tail);
+    if (i % 2 === 0) {
+      // светящаяся мордочка
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(.34, .3), pumpkinGlowMat);
+      face.position.set(0, .02, .31);
+      p.add(face);
+    }
+    const px = [-8, -13, 9, 14, -5, 6, 12][i], pz = [-48, -58, -50, -60, -72, -76, -78][i];
+    p.position.set(px, .24, pz);
+    scene.add(p);
+    addCol(px, pz, .34);
+  }
+  // листва-пятна на земле
+  for (let i = 0; i < 26; i++) {
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(.7 + Math.random(), 7), leafMats[i % 3]);
+    leaf.rotation.x = -Math.PI / 2;
+    leaf.rotation.z = Math.random() * 3;
+    const lx = (Math.random() - .5) * 60, lz = -44 - Math.random() * 44;
+    if (Math.hypot(lx, lz + 68) < 12) continue;
+    leaf.position.set(lx, .012 + Math.random() * .01, lz);
+    leaf.receiveShadow = true;
+    scene.add(leaf);
+  }
+  // тропа к святилищу
+  const path2 = new THREE.Mesh(
+    new THREE.PlaneGeometry(3, 34),
+    new THREE.MeshStandardMaterial({ map: cobbleTex(), roughness: 1 })
+  );
+  path2.rotation.x = -Math.PI / 2; path2.position.set(0, 0.014, -52);
+  path2.receiveShadow = true;
+  scene.add(path2);
+
+  /* ── врата леса ── */
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0x4a3a5a, flatShading: true, roughness: 1 });
+  const gateGlow = new THREE.MeshStandardMaterial({ color: 0xc9b8ff, emissive: 0x9b7bff, emissiveIntensity: 1.4 });
+  const gates = new THREE.Group();
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(.3, .38, 3.6, 6), gateMat);
+    pillar.position.set(side * 2.2, 1.8, 0);
+    pillar.castShadow = true;
+    gates.add(pillar);
+    const rune = new THREE.Mesh(new THREE.OctahedronGeometry(.16), gateGlow);
+    rune.position.set(side * 2.2, 2.6, .35);
+    gates.add(rune);
+  }
+  const arch = new THREE.Mesh(new THREE.BoxGeometry(5.4, .5, .5), gateMat);
+  arch.position.y = 3.7;
+  gates.add(arch);
+  const keystone = new THREE.Mesh(new THREE.OctahedronGeometry(.3), gateGlow);
+  keystone.position.y = 4.2;
+  gates.add(keystone);
+  gates.position.set(0, 0, -36);
+  scene.add(gates);
+  addCol(-2.2, -36, .45); addCol(2.2, -36, .45);
+
+  /* ── святилище ── */
+  const sanctuary = { x: 0, z: -68 };
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x55506b, flatShading: true, roughness: 1 });
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const menhir = new THREE.Mesh(new THREE.BoxGeometry(.8, 2 + (i % 3) * .5, .6), stoneMat);
+    menhir.position.set(sanctuary.x + Math.cos(a) * 11, 1, sanctuary.z + Math.sin(a) * 11);
+    menhir.rotation.y = a + Math.PI / 2;
+    menhir.rotation.z = (i % 2 ? .06 : -.06);
+    menhir.castShadow = true;
+    scene.add(menhir);
+    addCol(menhir.position.x, menhir.position.z, .6);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(.09, 6, 5), gateGlow);
+    dot.position.set(menhir.position.x, 2.3, menhir.position.z);
+    scene.add(dot);
+  }
+  const plazaStone = new THREE.Mesh(
+    new THREE.CircleGeometry(11, 30),
+    new THREE.MeshStandardMaterial({ map: cobbleTex(), roughness: 1 })
+  );
+  plazaStone.rotation.x = -Math.PI / 2;
+  plazaStone.position.set(sanctuary.x, .016, sanctuary.z);
+  plazaStone.receiveShadow = true;
+  scene.add(plazaStone);
+  // обелиск-приёмник света (сердце святилища)
+  const obelisk = new THREE.Group();
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(.7, .9, .5, 8), stoneMat);
+  pedestal.position.y = .25;
+  const heart = new THREE.Mesh(new THREE.OctahedronGeometry(.45),
+    new THREE.MeshStandardMaterial({ color: 0x3a3050, emissive: 0xffd27f, emissiveIntensity: 0 }));
+  heart.position.y = 1.35;
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(.35, 1.5, 4), stoneMat);
+  spire.position.y = .9;
+  spire.rotation.y = Math.PI / 4;
+  obelisk.add(pedestal, spire, heart);
+  obelisk.position.set(sanctuary.x, 0, sanctuary.z);
+  scene.add(obelisk);
+  addCol(sanctuary.x, sanctuary.z, .95);
+
+  /* ── созвездия на небе ── */
+  const constellationGroup = new THREE.Group();
+  // созвездие Лисы (север неба)
+  const foxPts = [[.30, .95], [.42, .95], [.36, .82], [.24, .76], [.50, .72], [.62, .66], [.72, .74], [.80, .84]];
+  const foxLinks = [[0, 2], [1, 2], [2, 3], [2, 4], [4, 5], [5, 6], [6, 7]];
+  function toSky(u, v) {
+    // (u,v) ∈ [0,1]² → купол: азимут ~север, высота 45..75°
+    const az = (-0.5 + u * .55) * Math.PI; // -0.27π..0.02π — к северу (z<0)
+    const el = (0.35 + v * .35) * Math.PI / 2; // ~31..63°
+    const R = 360;
+    return new THREE.Vector3(
+      Math.sin(az) * Math.cos(el) * R,
+      Math.sin(el) * R,
+      -Math.cos(az) * Math.cos(el) * R
+    );
+  }
+  const foxSky = foxPts.map(([u, v]) => toSky(u, v));
+  const foxStarGeo = new THREE.BufferGeometry().setFromPoints(foxSky);
+  const foxStarMat = new THREE.PointsMaterial({
+    color: 0xf5e3a0, size: 3.2, map: glow, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+  });
+  const foxStars = new THREE.Points(foxStarGeo, foxStarMat);
+  const foxLineGeo = new THREE.BufferGeometry().setFromPoints(
+    foxLinks.flatMap(([a, b]) => [foxSky[a], foxSky[b]])
+  );
+  const foxLineMat = new THREE.LineBasicMaterial({
+    color: 0xd9c07a, transparent: true, opacity: 0,
+  });
+  const foxLines = new THREE.LineSegments(foxLineGeo, foxLineMat);
+  constellationGroup.add(foxStars, foxLines);
+  // тусклые созвездия-соседи (заготовки будущих глав)
+  const faintMat = new THREE.PointsMaterial({
+    color: 0x8f84b8, size: 2, map: glow, transparent: true, opacity: .35,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  for (let c = 0; c < 4; c++) {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const az = (-0.8 + c * .5 + Math.random() * .3) * Math.PI;
+      const el = (.25 + Math.random() * .5) * Math.PI / 2;
+      pts.push(new THREE.Vector3(
+        Math.sin(az) * Math.cos(el) * 350,
+        Math.sin(el) * 350,
+        -Math.cos(az) * Math.cos(el) * 350
+      ));
+    }
+    constellationGroup.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts), faintMat));
+  }
+  constellationGroup.position.set(0, 0, 0); // вращается вместе со звёздами
+  scene.add(constellationGroup);
+  const constellations = {
+    foxLit: false,
+    litT: 0,
+    lightFox() {
+      this.foxLit = true;
+      this.litT = 0.0001;
+    },
+    update(dt) {
+      if (this.litT > 0) {
+        this.litT = Math.min(this.litT + dt, 3);
+        const k = Math.min(this.litT / 2.5, 1);
+        const pulse = .85 + Math.sin(this.litT * 6) * .15 * (1 - k * .7);
+        foxStarMat.opacity = k * pulse;
+        foxLineMat.opacity = k * .8 * pulse;
+      }
+    },
+  };
+
   /* ── дальние горы ── */
   const mountMat = new THREE.MeshStandardMaterial({ color: 0x241c48, flatShading: true, roughness: 1 });
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2 + .2;
-    const r = 95 + (i * 17.3) % 40;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + .2;
+    const r = 155 + (i * 17.3) % 55;
     const m = new THREE.Mesh(
-      new THREE.ConeGeometry(16 + (i * 7) % 14, 18 + (i * 11) % 26, 5), mountMat
+      new THREE.ConeGeometry(18 + (i * 7) % 16, 20 + (i * 11) % 30, 5), mountMat
     );
     m.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
     m.rotation.y = i;
@@ -448,6 +663,7 @@ export function createWorld(scene, renderer) {
     colliders, lanterns, dayT: 0.56, nightF: 1, firefliesCollected: 0,
     onCollect: null, onLantern: null,
     burst, glowTex: glow,
+    boundsR: WORLD_R, sanctuary, obeliskHeart: heart, constellations,
   };
 
   world.lightLantern = (i) => {
@@ -490,6 +706,8 @@ export function createWorld(scene, renderer) {
     starMat.opacity = k.nightF * .95;
     stars.rotation.y += dt * 0.004;
     stars.position.set(playerPos.x, 0, playerPos.z);
+    constellationGroup.rotation.y = stars.rotation.y;
+    constellations.update(dt);
 
     // окна и кристаллы ярче ночью
     windowMat.emissiveIntensity = 0.25 + k.nightF * 1.6;

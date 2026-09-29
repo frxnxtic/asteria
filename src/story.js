@@ -43,7 +43,7 @@ export class Dialog {
 
 export class Story {
   constructor(deps) {
-    Object.assign(this, deps); // scene, world, player, combat, audio, fox, save, persist, camp
+    Object.assign(this, deps); // scene, world, player, combat, audio, fox, save, persist, camp, puzzles, events
     this.dialog = new Dialog(lock => deps.input.setLocked(lock));
     window.__audioBlip = () => this.audio.blip();
     this.step = this.save.storyStep ?? 0;
@@ -51,15 +51,32 @@ export class Story {
     if (this.step === 1 && (this.save.questHerbs ?? 0) >= 3) this.step = 2;
     this.potions = this.save.potions ?? 0;
     this.herbCarry = this.save.herbCarry ?? 0;
-    this.questHerbs = this.save.questHerbs ?? 0; // травы, сданные в квест
+    this.questHerbs = this.save.questHerbs ?? 0;
     this.blinkUnlocked = this.save.blinkUnlocked ?? false;
     this.potionRecipe = this.save.potionRecipe ?? false;
+    this.bossSpawned = false;
     this.blinkBtn = $("blinkBtn");
     this.blinkBtn.style.display = this.blinkUnlocked ? "grid" : "none";
     this.onPotions = null;
 
     this._herbs = [];
     this._spawnHerbs();
+
+    // восстановление загадок из сейва
+    const pz = this.save.puzzles ?? {};
+    if (pz.mirrors) this.puzzles.solved.mirrors = true;
+    if (pz.stars) this.puzzles.solved.stars = true;
+    if (pz.bells) this.puzzles.solved.bells = true;
+    this.puzzles.restore();
+    if (pz.mirrors) this.world.obeliskHeart.material.emissiveIntensity = .6;
+    if (this.save.foxLit || this.step >= 12) {
+      // созвездие уже зажжено (прошлая сессия) — без повторной анимации
+      this.world.constellations.lightFox();
+      this.world.constellations.litT = 3;
+      this.world.obeliskHeart.material.emissiveIntensity = 2.4;
+      this._bossDone = true;
+      this.save.foxLit = true;
+    }
 
     this._applyStep(true);
     this.refreshPotion();
@@ -148,9 +165,106 @@ export class Story {
         break;
       case 5:
         this.objective("Глава 1 завершена ✨ Гавань дышит", !initial);
+        if (!initial) setTimeout(() => toast("Дэн зовёт тебя к костру 🔥", 3600), 3200);
+        break;
+      case 6:
+        this.objective("Пройди врата Сумеречного леса 🌲", !initial);
+        break;
+      case 7:
+        this.objective("Загадка зеркал: доведи луч до обелиска 🪞", !initial);
+        break;
+      case 8:
+        this.objective("Загадка звёзд: соедини созвездие Лисы ✦", !initial);
+        break;
+      case 9:
+        this.objective("Загадка грибов: повтори песню колокольчиков 🍄", !initial);
+        break;
+      case 10:
+        this.objective("Святилище пробуждено. Войди в круг камней ⚔️", !initial);
+        break;
+      case 11:
+        this.objective("Победи Пожирателя Света ⚔️", !initial);
+        break;
+      case 12:
+        this.objective("Небо вспыхнуло! Вернись к Дэну 🧑", !initial);
+        break;
+      case 13:
+        this.objective("Глава 2 завершена ✨ Созвездие Лисы горит", !initial);
         break;
     }
     this.save.storyStep = this.step;
+  }
+
+  /* ── цель для компаса ── */
+  getTarget() {
+    const s = this.world.sanctuary;
+    switch (this.step) {
+      case 5: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      case 6: return { x: 0, z: -36, label: "врата леса" };
+      case 7: return { x: -3, z: -47, label: "зеркала" };
+      case 8: return { x: -8, z: -54, label: "звёздная плита" };
+      case 9: return { x: 9, z: -55, label: "колокольчики" };
+      case 10:
+      case 11: return { x: s.x, z: s.z, label: "святилище" };
+      case 12: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      default: return null;
+    }
+  }
+
+  /* ── триггеры зоны (вызывать из main каждый кадр) ── */
+  zoneTriggers(playerPos) {
+    if (this.dialog.active) return;
+    // шаг 5 → 6: через 8 секунд после финала главы 1 Дэн зовёт (кнопкой у Дэна)
+    // шаг 6 → 7: прошла врата
+    if (this.step === 6 && playerPos.z < -37) {
+      this.nextStep();
+      toast("Сумеречный лес встречает тебя шёпотом листьев 🍂", 3600);
+    }
+    // шаг 10/11 → босс: вошла в круг камней (или вернулась после перезагрузки в бою)
+    if ((this.step === 10 || this.step === 11) && !this.bossSpawned) {
+      const s = this.world.sanctuary;
+      if (Math.hypot(playerPos.x - s.x, playerPos.z - s.z) < 11) {
+        this.bossSpawned = true;
+        this.nextStep();
+        this.combat.startBoss(new THREE.Vector3(s.x, 0, s.z - 6));
+        this.audio.hurt();
+        toast("ПОЖИРАТЕЛЬ СВЕТА ПРОБУЖДАЕТСЯ ⚔️", 4200);
+      }
+    }
+    // страховка: босса нет, свиты нет, а шаг всё ещё 11 → победа засчитана
+    if (this.step === 11 && this.bossSpawned && this.combat.enemies.length === 0) {
+      this.bossDefeated();
+    }
+  }
+
+  /* ── решённые загадки (колбэки от puzzles) ── */
+  onPuzzleSolved(name) {
+    this.save.puzzles = { ...this.puzzles.solved };
+    if (name === "mirrors" && this.step === 7) {
+      this.world.obeliskHeart.material.emissiveIntensity = .6;
+      this.nextStep();
+      toast("Луч коснулся обелиска! Сердце святилища тёплое ✨", 3600);
+    }
+    if (name === "stars" && this.step === 8) {
+      this.nextStep();
+      toast("Звёзды помнят рисунок Лисы ✦", 3200);
+    }
+    if (name === "bells" && this.step === 9) {
+      this.nextStep();
+    }
+  }
+
+  /* ── босс повержен ── */
+  bossDefeated() {
+    if (this._bossDone) return;
+    this._bossDone = true;
+    this.save.foxLit = true;
+    this.audio.questDone();
+    this.world.constellations.lightFox();
+    this.world.obeliskHeart.material.emissiveIntensity = 2.4;
+    this.events.addSparkles(8);
+    this.nextStep();
+    toast("СОЗВЕЗДИЕ ЛИСЫ ВОСПЫЛАЛО В НЕБЕ ✨🦊", 5000);
   }
 
   nextStep() {
@@ -188,6 +302,25 @@ export class Story {
           setTimeout(() => toast("Рецепт «Зелье росы»: 2 лунные травы → лечение 🧪", 4200), 1800);
         }
         this.persist();
+      });
+    } else if (this.step === 5) {
+      D.open("Дэн", "🧑", [
+        "Смотри на север, Юляся. Видишь пустое место в небе?",
+        "Созвездие Лисы погасло. Лисы — знак Искры. Если оно исчезнет навсегда, Тишь доберётся и до Гавани.",
+        "За мостом — Сумеречный лес. Найди святилище, разгадай его тайны и зажги сердце созвездия.",
+        "И вот ещё что… в лесу прячут блёстки 💎. Они пригодятся у алтаря святилища.",
+      ], () => this.nextStep());
+    } else if (this.step === 12) {
+      D.open("Дэн", "🧑", [
+        "Небо… Ты видишь? Созвездие Лисы горит снова! Вся Гавань смотрит вверх.",
+        "Тишь отступила от леса. Но она запомнила твоё имя, хранительница.",
+        "Собирай блёстки 💎 — алтарь у святилища сделает твоё сердце ярче.",
+        "Отдыхай. Скоро откроются новые пути… 🌟",
+      ], () => {
+        this.nextStep();
+        this.events.addSparkles(3);
+        this.audio.questDone();
+        toast("Глава 2 завершена ✨ Награда: +3 блёстки 💎", 4200);
       });
     } else {
       D.open("Дэн", "🧑", ["Отдыхай, хранительница. Скоро откроются новые пути."]);

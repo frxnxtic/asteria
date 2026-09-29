@@ -41,6 +41,10 @@ export class Combat {
     this.enemies = [];
     this.waveActive = false;
     this.waveQueue = [];
+    // кольца-волны босса
+    this.rings = [];
+    this.onBossDefeated = null;
+    this.onBossIntro = null;
     this.spawnPoints = [
       new THREE.Vector3(0, 0, -18), new THREE.Vector3(16, 0, -6),
       new THREE.Vector3(-16, 0, -6), new THREE.Vector3(8, 0, 14), new THREE.Vector3(-8, 0, 14),
@@ -95,7 +99,7 @@ export class Combat {
     const dir = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
     const to = from.clone().addScaledVector(dir, BLINK_DIST);
     // мир и коллайдеры
-    const R = 55, d = Math.hypot(to.x, to.z);
+    const R = 95, d = Math.hypot(to.x, to.z);
     if (d > R) to.multiplyScalar(R / d);
     for (const c of this.world.colliders) {
       const dx = to.x - c.x, dz = to.z - c.z;
@@ -118,16 +122,40 @@ export class Combat {
   }
 
   /* ── враги ── */
-  spawnEnemy(pos, elite = false) {
-    const r = elite ? .55 : .38;
-    const { group, body, eyeL, eyeR } = buildMist(r, elite);
+  spawnEnemy(pos, kind = "crawler") {
+    const cfg = {
+      crawler: { r: .38, hp: 3, speed: 2.3 },
+      elite: { r: .55, hp: 7, speed: 1.7 },
+      boss: { r: 1.1, hp: 40, speed: 1.85 },
+    }[kind];
+    const { group, body, eyeL, eyeR } = buildMist(cfg.r, kind !== "crawler");
+    if (kind === "boss") {
+      // корона шипов Пожирателя Света
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const spike = new THREE.Mesh(
+          new THREE.ConeGeometry(.14, .8, 4),
+          mat(0x2e2050, { emissive: 0x9b5bee, emissiveIntensity: 1.2 })
+        );
+        spike.position.set(Math.cos(a) * cfg.r * .75, cfg.r * 1.5, Math.sin(a) * cfg.r * .75);
+        spike.rotation.z = Math.cos(a) * .4;
+        group.add(spike);
+      }
+      const third = new THREE.Mesh(new THREE.SphereGeometry(.12, 6, 5),
+        mat(0xffd27f, { emissive: 0xff9a3f, emissiveIntensity: 2 }));
+      third.position.set(0, cfg.r * 1.05, cfg.r * .8);
+      group.add(third);
+    }
     group.position.copy(pos);
     this.scene.add(group);
     this.enemies.push({
       obj: group, body, eyes: [eyeL, eyeR],
-      r, hp: elite ? 7 : 3, maxHp: elite ? 7 : 3,
-      speed: elite ? 1.7 : 2.3 + Math.random() * .5,
-      elite, seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
+      r: cfg.r, hp: cfg.hp, maxHp: cfg.hp,
+      speed: cfg.speed + (kind === "crawler" ? Math.random() * .5 : 0),
+      elite: kind === "elite", boss: kind === "boss",
+      seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
+      // босс: фазы и атаки
+      phase: 1, dashT: 0, dashDir: null, minionT: 5, ringT: 3,
     });
   }
 
@@ -137,6 +165,11 @@ export class Combat {
     this.waveActive = true;
   }
 
+  startBoss(pos) {
+    this.spawnEnemy(pos, "boss");
+    this.onBossIntro && this.onBossIntro();
+  }
+
   aliveInWave() { return this.enemies.length + this.waveQueue.length; }
 
   damageEnemy(e, n) {
@@ -144,15 +177,29 @@ export class Combat {
     e.hitFlash = .18;
     this.audio.hitEnemy();
     if (e.hp <= 0) {
-      this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, .5, 0)), 0x9b5bee, 12);
+      this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, .5 + e.r, 0)), 0x9b5bee, e.boss ? 26 : 12);
       // трофеи
-      const drop = e.elite ? 4 : 1 + (Math.random() < .5 ? 1 : 0);
+      const drop = e.boss ? 10 : e.elite ? 4 : 1 + (Math.random() < .5 ? 1 : 0);
       this.world.firefliesCollected += drop;
       this.world.onCollect && this.world.onCollect(this.world.firefliesCollected);
       this.scene.remove(e.obj);
       this.enemies.splice(this.enemies.indexOf(e), 1);
       this.audio.enemyDie();
-      this.onEnemyKilled && this.onEnemyKilled(e);
+      if (e.boss) {
+        // свита исчезает вместе с хозяином
+        for (const other of [...this.enemies]) {
+          if (other === e) continue;
+          this.world.burst(other.obj.position.clone().add(new THREE.Vector3(0, .5, 0)), 0x9b5bee, 8);
+          this.scene.remove(other.obj);
+          this.enemies.splice(this.enemies.indexOf(other), 1);
+        }
+        // очистить кольца
+        for (const ring of this.rings) this.scene.remove(ring.mesh);
+        this.rings.length = 0;
+        this.onBossDefeated && this.onBossDefeated();
+      } else {
+        this.onEnemyKilled && this.onEnemyKilled(e);
+      }
     }
   }
 
@@ -233,8 +280,13 @@ export class Combat {
       dir.y = 0;
       const dist = dir.length();
       dir.normalize();
-      e.obj.position.addScaledVector(dir, e.speed * dt);
-      e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+
+      if (e.boss) {
+        this._updateBoss(e, dt, elapsed, playerPos, dir, dist);
+      } else {
+        e.obj.position.addScaledVector(dir, e.speed * dt);
+        e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+      }
       // не заходят в дома/деревья
       for (const c of this.world.colliders) {
         const dx = e.obj.position.x - c.x, dz = e.obj.position.z - c.z;
@@ -256,12 +308,92 @@ export class Combat {
       }
       // касание — урон героине
       e.touchCd = Math.max(0, e.touchCd - dt);
-      if (dist < e.r + .55 && e.touchCd <= 0 && !this.dead) {
-        e.touchCd = 1.1;
-        this.hurtPlayer(1, e.obj.position);
+      const touchRange = e.r + .55;
+      if (dist < touchRange && e.touchCd <= 0 && !this.dead) {
+        e.touchCd = e.boss ? 1.4 : 1.1;
+        this.hurtPlayer(e.boss ? 2 : 1, e.obj.position);
         // мягкий отброс героини
         const away = new THREE.Vector3().subVectors(playerPos, e.obj.position).setY(0).normalize();
-        player.obj.position.addScaledVector(away, .8);
+        player.obj.position.addScaledVector(away, e.boss ? 1.6 : .8);
+      }
+    }
+
+    // кольца-волны: расширяются, бьют по радиусу
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const ring = this.rings[i];
+      ring.r += 4.6 * dt;
+      ring.mesh.scale.setScalar(ring.r);
+      ring.mesh.material.opacity = Math.max(0, .85 - ring.r / 16);
+      const dPlayer = Math.hypot(playerPos.x - ring.x, playerPos.z - ring.z);
+      if (!ring.hitDone && Math.abs(dPlayer - ring.r) < .6) {
+        ring.hitDone = true;
+        this.hurtPlayer(1, null);
+      }
+      if (ring.r > 16) {
+        this.scene.remove(ring.mesh);
+        this.rings.splice(i, 1);
+      }
+    }
+  }
+
+  /* ── босс: Пожиратель Света ── */
+  _updateBoss(e, dt, elapsed, playerPos, dir, dist) {
+    e.phase = e.hp > 26 ? 1 : e.hp > 12 ? 2 : 3;
+    // контактный урон и погоня обрабатываются в общем цикле; здесь спец-атаки
+    if (e.dashT > 0) {
+      // фаза рывка
+      e.dashT -= dt;
+      e.obj.position.addScaledVector(e.dashDir, 13 * dt);
+      if (e.dashT <= 0) e.dashDir = null;
+      return;
+    }
+    // обычное движение (медленнее при телеграфе)
+    const slow = e.chargeT > 0 ? 0 : 1;
+    e.obj.position.addScaledVector(dir, e.speed * slow * dt);
+    e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+    if (e.chargeT > 0) {
+      e.chargeT -= dt;
+      if (e.chargeT <= 0) { e.dashT = .55; e.dashDir = dir.clone(); }
+      return;
+    }
+    if (e.phase >= 2) {
+      // рывок каждые ~4.5с
+      e.dashCd = (e.dashCd ?? 4) - dt;
+      if (e.dashCd <= 0 && dist > 3) {
+        e.dashCd = 4.5;
+        e.chargeT = .7; // телеграф: замирает и сжимается
+        this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, 1.6, 0)), 0x6b4a8a, 6);
+      }
+      // миньоны
+      e.minionT -= dt;
+      if (e.minionT <= 0) {
+        e.minionT = 8;
+        const minions = this.enemies.filter(x => !x.boss).length;
+        if (minions < 2) {
+          const a = Math.random() * Math.PI * 2;
+          const p = e.obj.position.clone().add(new THREE.Vector3(Math.cos(a) * 2, 0, Math.sin(a) * 2));
+          this.spawnEnemy(p, "crawler");
+          this.world.burst(p.clone().add(new THREE.Vector3(0, .6, 0)), 0x9b5bee, 8);
+        }
+      }
+    }
+    if (e.phase >= 3) {
+      // кольца-волны
+      e.ringT -= dt;
+      if (e.ringT <= 0) {
+        e.ringT = 4.2;
+        const mesh = new THREE.Mesh(
+          new THREE.TorusGeometry(1, .07, 6, 48),
+          new THREE.MeshBasicMaterial({
+            color: 0xb98bff, transparent: true, opacity: .85,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+          })
+        );
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.set(e.obj.position.x, .3, e.obj.position.z);
+        this.scene.add(mesh);
+        this.rings.push({ mesh, r: 1, x: e.obj.position.x, z: e.obj.position.z, hitDone: false });
+        this.audio.blink();
       }
     }
   }

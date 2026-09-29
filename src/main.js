@@ -6,6 +6,8 @@ import { AudioEngine } from "./audio.js";
 import { Combat } from "./combat.js";
 import { Story, toast } from "./story.js";
 import { Fox, buildDen, buildCamp, buildHerb } from "./entities.js";
+import { Puzzles } from "./puzzles.js";
+import { Events } from "./events.js";
 
 /* ── сейвы ── */
 const SAVE_KEY = "asteria_save_v1";
@@ -14,6 +16,7 @@ const save = {
   dayT: 0.56, muted: false,
   storyStep: 0, questHerbs: 0, herbCarry: 0, potions: 0,
   blinkUnlocked: false, potionRecipe: false,
+  sparkles: 0, chests: [], maxHpBonus: 0, puzzles: {},
 };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
@@ -78,15 +81,27 @@ const combat = new Combat(scene, world, audio, world.glowTex);
 combat.refreshHp();
 combat.onDeath = () => {
   toast("Мгла поглотила тебя… но свет возвращает тебя 💫", 3200);
+  const inBossFight = combat.enemies.some(e => e.boss);
   setTimeout(() => {
-    player.obj.position.set(camp.x + .8, 0, camp.z + 1.6);
+    if (inBossFight) player.obj.position.set(0, 0, -58);
+    else player.obj.position.set(camp.x + .8, 0, camp.z + 1.6);
     combat.respawn();
   }, 1400);
 };
 combat.onWaveCleared = () => story.waveCleared();
+combat.onBossDefeated = () => story.bossDefeated();
+
+const puzzles = new Puzzles(scene, world, audio, world.glowTex, player, input);
+const events = new Events(scene, world, audio, world.glowTex, save, persist, player);
+combat.maxHp += events.maxHpBonus;
+combat.refreshHp();
+events.onAltarUp = () => { combat.maxHp = 5 + events.maxHpBonus; combat.hp = combat.maxHp; combat.refreshHp(); };
+events.onSparkles = n => { document.getElementById("sparkCount").textContent = n; };
+document.getElementById("sparkCount").textContent = events.sparkles;
+puzzles.onSolved = name => story.onPuzzleSolved(name);
 
 const story = new Story({
-  scene, world, player, combat, audio, fox, save, persist, input, camp,
+  scene, world, player, combat, audio, fox, save, persist, input, camp, puzzles, events,
 });
 story.ensureHerbMeshes(buildHerb);
 
@@ -142,43 +157,67 @@ startScreen.addEventListener("pointerdown", () => {
   setTimeout(() => showToast("Собирай ✨ и зажигай 🏮 фонари", 3600), 900);
 }, { once: false });
 
-/* ── взаимодействие: фонари, Дэн, котелок ── */
+/* ── взаимодействие: фонари, Дэн, котелок, загадки, сундуки, алтарь ── */
 let nearAct = null;
-const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲" };
+const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲", mirror: "🪞", slab: "✦", bell: "🍄", chest: "💎", altar: "💠" };
 function checkInteract() {
-  if (story.dialog.active) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
-  let best = null, bestD = 2.4;
+  if (story.dialog.active || puzzles._slabOpen) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
+  const px = player.position.x, pz = player.position.z;
+  const cand = [];
   world.lanterns.forEach((L, i) => {
-    if (L.lit) return;
-    const d = Math.hypot(player.position.x - L.x, player.position.z - L.z);
-    if (d < bestD) { bestD = d; best = { type: "lantern", i }; }
+    if (!L.lit) cand.push({ type: "lantern", i, d: Math.hypot(px - L.x, pz - L.z) });
   });
-  {
-    const d = Math.hypot(player.position.x - den.group.position.x, player.position.z - den.group.position.z);
-    if (d < bestD) { bestD = d; best = { type: "den" }; }
-  }
-  {
-    const d = Math.hypot(player.position.x - (camp.x + 1.1), player.position.z - (camp.z + .3));
-    if (d < bestD) { bestD = d; best = { type: "cauldron" }; }
-  }
-  if ((best && best.type) !== (nearAct && nearAct.type)) {
+  cand.push({ type: "den", d: Math.hypot(px - den.group.position.x, pz - den.group.position.z) });
+  cand.push({ type: "cauldron", d: Math.hypot(px - (camp.x + 1.1), pz - (camp.z + .3)) });
+  const pn = puzzles.near();
+  if (pn) cand.push({ type: pn.kind, ref: pn.ref, d: Math.hypot(px - pn.x, pz - pn.z) });
+  for (const c of events.chests) if (!c.opened) cand.push({ type: "chest", ref: c, d: Math.hypot(px - c.x, pz - c.z) });
+  if (story.step >= 12) cand.push({ type: "altar", d: Math.hypot(px - events.altar.x, pz - events.altar.z) });
+  cand.sort((a, b) => a.d - b.d);
+  const best = cand.length && cand[0].d < 2.4 ? cand[0] : null;
+  const key = best ? best.type : null;
+  if (key !== (nearAct && nearAct.type)) {
     nearAct = best;
     if (best) { interactBtn.textContent = ACT_EMOJI[best.type]; interactBtn.classList.add("show"); }
     else interactBtn.classList.remove("show");
   }
   if (input.consumeInteract() && nearAct) {
-    if (nearAct.type === "lantern") {
-      if (world.lightLantern(nearAct.i)) {
-        save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
-        world.onLantern(nearAct.i);
-      }
-    } else if (nearAct.type === "den") {
-      story.talkToDen();
-    } else if (nearAct.type === "cauldron") {
-      story.useCauldron();
+    switch (nearAct.type) {
+      case "lantern":
+        if (world.lightLantern(nearAct.i)) {
+          save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
+          world.onLantern(nearAct.i);
+        }
+        break;
+      case "den": story.talkToDen(); break;
+      case "cauldron": story.useCauldron(); break;
+      case "mirror": case "slab": case "bell":
+        puzzles.interact({ kind: nearAct.type, ref: nearAct.ref });
+        break;
+      case "chest": events.openChest(nearAct.ref); break;
+      case "altar": events.useAltar(); break;
     }
     nearAct = null;
     interactBtn.classList.remove("show");
+  }
+}
+
+/* ── компас к цели ── */
+const compassEl = document.getElementById("compass");
+const lastCompass = { s: "" };
+function updateCompass() {
+  const t = story.getTarget();
+  if (!t) { if (lastCompass.s !== "") { compassEl.style.display = "none"; lastCompass.s = ""; } return; }
+  const dx = t.x - player.position.x, dz = t.z - player.position.z;
+  const dist = Math.hypot(dx, dz);
+  let ang = Math.atan2(dx, dz) - cam.yaw;
+  const arrows = ["▲", "◤", "◄", "◣", "▼", "◢", "►", "◥"];
+  const idx = Math.round((((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
+  const s = `${arrows[idx]} ${t.label} · ${Math.round(dist)}м`;
+  if (s !== lastCompass.s) {
+    compassEl.style.display = "block";
+    compassEl.textContent = s;
+    lastCompass.s = s;
   }
 }
 
@@ -228,6 +267,10 @@ function frame() {
   // ── спутники и декор жизни ──
   fox.update(dt, elapsed, player.position);
   story.updateHerbs(dt, elapsed, player.position);
+  story.zoneTriggers(player.position);
+  puzzles.update(elapsed);
+  events.update(dt, elapsed, player.position);
+  updateCompass();
   den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;
   den.lamp.rotation.y = elapsed * 1.2;
   den.group.rotation.z = Math.sin(elapsed * .8) * .015;
@@ -269,10 +312,11 @@ addEventListener("resize", () => {
 document.addEventListener("visibilitychange", () => { if (document.hidden) persist(); });
 addEventListener("pagehide", persist);
 
-// офлайн-режим при хостинге (для файла-сборки dist SW не нужен)
-if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+// офлайн-режим только на проде (localhost без SW — иначе кэш мешает разработке)
+const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !isLocal) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
 // отладочный доступ (тесты)
-window.__debug = { world, player, combat, story, fox };
+window.__debug = { world, player, combat, story, fox, puzzles, events };

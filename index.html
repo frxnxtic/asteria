@@ -147,6 +147,13 @@
   #objective.flash { animation: objflash 1.2s ease; }
   @keyframes objflash { 0% { transform: translateX(-50%) scale(1);} 30% { transform: translateX(-50%) scale(1.12);} 100% { transform: translateX(-50%) scale(1);} }
 
+  #compass {
+    position: absolute; top: calc(48px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    color: #d8cffa; font-size: 12.5px; font-weight: 600; letter-spacing: .04em;
+    background: rgba(20,12,42,.5); border-radius: 99px; padding: 3px 12px; display: none;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); white-space: nowrap;
+  }
+
   /* ── диалоговое окно ── */
   #dialog {
     position: absolute; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom));
@@ -197,10 +204,12 @@
   <div class="hud-top">
     <div class="chip"><span class="em">✨</span><span id="ffCount">0</span></div>
     <div class="chip"><span class="em">🏮</span><span id="lanCount">0/9</span></div>
+    <div class="chip"><span class="em">💎</span><span id="sparkCount">0</span></div>
     <div class="chip" id="timeChip"><span class="em" id="timeIcon">🌙</span><span id="timeLabel">ночь</span></div>
     <div id="soundBtn" title="звук">🔊</div>
   </div>
   <div id="objective">✨ Пробудись, хранительница…</div>
+  <div id="compass"></div>
   <div id="hpBar"></div>
   <div id="joyBase"><div id="joyKnob"></div></div>
   <div class="act-btn" id="interactBtn">🔥</div>

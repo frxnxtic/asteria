@@ -147,6 +147,13 @@
   #objective.flash { animation: objflash 1.2s ease; }
   @keyframes objflash { 0% { transform: translateX(-50%) scale(1);} 30% { transform: translateX(-50%) scale(1.12);} 100% { transform: translateX(-50%) scale(1);} }
 
+  #compass {
+    position: absolute; top: calc(48px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    color: #d8cffa; font-size: 12.5px; font-weight: 600; letter-spacing: .04em;
+    background: rgba(20,12,42,.5); border-radius: 99px; padding: 3px 12px; display: none;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); white-space: nowrap;
+  }
+
   /* ── диалоговое окно ── */
   #dialog {
     position: absolute; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom));
@@ -197,10 +204,12 @@
   <div class="hud-top">
     <div class="chip"><span class="em">✨</span><span id="ffCount">0</span></div>
     <div class="chip"><span class="em">🏮</span><span id="lanCount">0/9</span></div>
+    <div class="chip"><span class="em">💎</span><span id="sparkCount">0</span></div>
     <div class="chip" id="timeChip"><span class="em" id="timeIcon">🌙</span><span id="timeLabel">ночь</span></div>
     <div id="soundBtn" title="звук">🔊</div>
   </div>
   <div id="objective">✨ Пробудись, хранительница…</div>
+  <div id="compass"></div>
   <div id="hpBar"></div>
   <div id="joyBase"><div id="joyKnob"></div></div>
   <div class="act-btn" id="interactBtn">🔥</div>
@@ -80842,7 +80851,7 @@ class Player {
     if (this.obj.position.y <= 0) { this.obj.position.y = 0; this.vel.y = 0; this.onGround = true; }
 
     // границы мира
-    const R = 55, d = Math.hypot(this.obj.position.x, this.obj.position.z);
+    const R = 95, d = Math.hypot(this.obj.position.x, this.obj.position.z);
     if (d > R) { this.obj.position.x *= R / d; this.obj.position.z *= R / d; }
 
     // круглые коллайдеры
@@ -80930,10 +80939,11 @@ class Player {
 }
 
 
-// Ночная Гавань: небо-купол, звёзды, луна, площадь, дома, мост через ручей,
-// фонари (интерактив), светлячки (коллекция), кристаллы, плавучие островки.
+// Ночная Гавань + Сумеречный лес: небо-купол, звёзды, луна, площадь, дома,
+// мост через ручей, фонари (интерактив), светлячки (коллекция), кристаллы,
+// плавучие островки, лес с святилищем и созвездия на небе.
 const DAY_LEN = 480; // полный цикл день/ночь, сек
-const WORLD_R = 55;
+const WORLD_R = 95;
 
 /* ── процедурные текстуры ── */
 function canvasTex(size, painter, repeat = 1) {
@@ -81088,7 +81098,7 @@ function createWorld(scene, renderer) {
 
   /* ── земля ── */
   const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(140, 48),
+    new THREE.CircleGeometry(240, 56),
     new THREE.MeshStandardMaterial({ map: grassTex(), color: 0xb8c8b8, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
@@ -81287,13 +81297,227 @@ function createWorld(scene, renderer) {
     crystals.push(m);
   }
 
+  /* ── Сумеречный лес ── */
+  const autumnCrowns = [0xc9752e, 0xd98a3f, 0xb5563f, 0xe0a04f, 0x9a5a30, 0xd4684a];
+  const mushMat = new THREE.MeshStandardMaterial({ color: 0xc9e8ff, emissive: 0x6fb8ef, emissiveIntensity: 1.2 });
+  const leafMats = [0xa8662e, 0xc17a38, 0x8f5230].map(c =>
+    new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  const forestTrees = [];
+  for (let i = 0; i < 34; i++) {
+    const a = (i / 34) * Math.PI * 2;
+    const rr = 6 + ((i * 13.7) % 26);
+    let x = Math.cos(a * 3.1 + i) * rr;
+    let z = -44 - ((i * 9.3) % 44);
+    // не ставим на тропу (|x|<3) и на поляну святилища
+    if (Math.abs(x) < 3.2 && z > -66) x += x >= 0 ? 3.5 : -3.5;
+    if (Math.hypot(x, z + 68) < 13) continue;
+    const s = 1.1 + ((i * 7.1) % 10) / 8;
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.16 * s, .24 * s, 1.6 * s, 6), trunkMat);
+    trunk.position.y = .8 * s; trunk.castShadow = true;
+    const crown = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.25 * s, 0),
+      new THREE.MeshStandardMaterial({ color: autumnCrowns[i % autumnCrowns.length], flatShading: true, roughness: 1 })
+    );
+    crown.position.y = 2.5 * s; crown.castShadow = true;
+    crown.rotation.set(i, i * 2.3, 0);
+    const crown2 = new THREE.Mesh(new THREE.IcosahedronGeometry(.8 * s, 0), crown.material);
+    crown2.position.set(.5 * s, 3.1 * s, .3 * s);
+    crown2.rotation.set(i * 3, i, 0);
+    g.add(trunk, crown, crown2);
+    // гриб-фонарик у корней
+    if (i % 3 === 0) {
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(.14, .12, 6), mushMat);
+      cap.position.set(.4 * s, .1, .3 * s);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04, .05, .18, 5),
+        new THREE.MeshStandardMaterial({ color: 0xd8cbb0, flatShading: true }));
+      stem.position.set(.4 * s, .06, .3 * s);
+      g.add(cap, stem);
+    }
+    g.position.set(x, 0, z);
+    scene.add(g);
+    addCol(x, z, .55 * s);
+    forestTrees.push(g);
+  }
+  // тыквы на полянах
+  const pumpkinMat = new THREE.MeshStandardMaterial({ color: 0xe08a3f, flatShading: true, roughness: 1 });
+  const pumpkinGlowMat = new THREE.MeshStandardMaterial({ color: 0xffd27f, emissive: 0xff9a3f, emissiveIntensity: 1.5 });
+  for (let i = 0; i < 7; i++) {
+    const p = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.32, 8, 6), pumpkinMat);
+    body.scale.y = .78;
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(.03, .04, .12, 5), trunkMat);
+    tail.position.y = .28;
+    p.add(body, tail);
+    if (i % 2 === 0) {
+      // светящаяся мордочка
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(.34, .3), pumpkinGlowMat);
+      face.position.set(0, .02, .31);
+      p.add(face);
+    }
+    const px = [-8, -13, 9, 14, -5, 6, 12][i], pz = [-48, -58, -50, -60, -72, -76, -78][i];
+    p.position.set(px, .24, pz);
+    scene.add(p);
+    addCol(px, pz, .34);
+  }
+  // листва-пятна на земле
+  for (let i = 0; i < 26; i++) {
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(.7 + Math.random(), 7), leafMats[i % 3]);
+    leaf.rotation.x = -Math.PI / 2;
+    leaf.rotation.z = Math.random() * 3;
+    const lx = (Math.random() - .5) * 60, lz = -44 - Math.random() * 44;
+    if (Math.hypot(lx, lz + 68) < 12) continue;
+    leaf.position.set(lx, .012 + Math.random() * .01, lz);
+    leaf.receiveShadow = true;
+    scene.add(leaf);
+  }
+  // тропа к святилищу
+  const path2 = new THREE.Mesh(
+    new THREE.PlaneGeometry(3, 34),
+    new THREE.MeshStandardMaterial({ map: cobbleTex(), roughness: 1 })
+  );
+  path2.rotation.x = -Math.PI / 2; path2.position.set(0, 0.014, -52);
+  path2.receiveShadow = true;
+  scene.add(path2);
+
+  /* ── врата леса ── */
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0x4a3a5a, flatShading: true, roughness: 1 });
+  const gateGlow = new THREE.MeshStandardMaterial({ color: 0xc9b8ff, emissive: 0x9b7bff, emissiveIntensity: 1.4 });
+  const gates = new THREE.Group();
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(.3, .38, 3.6, 6), gateMat);
+    pillar.position.set(side * 2.2, 1.8, 0);
+    pillar.castShadow = true;
+    gates.add(pillar);
+    const rune = new THREE.Mesh(new THREE.OctahedronGeometry(.16), gateGlow);
+    rune.position.set(side * 2.2, 2.6, .35);
+    gates.add(rune);
+  }
+  const arch = new THREE.Mesh(new THREE.BoxGeometry(5.4, .5, .5), gateMat);
+  arch.position.y = 3.7;
+  gates.add(arch);
+  const keystone = new THREE.Mesh(new THREE.OctahedronGeometry(.3), gateGlow);
+  keystone.position.y = 4.2;
+  gates.add(keystone);
+  gates.position.set(0, 0, -36);
+  scene.add(gates);
+  addCol(-2.2, -36, .45); addCol(2.2, -36, .45);
+
+  /* ── святилище ── */
+  const sanctuary = { x: 0, z: -68 };
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x55506b, flatShading: true, roughness: 1 });
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const menhir = new THREE.Mesh(new THREE.BoxGeometry(.8, 2 + (i % 3) * .5, .6), stoneMat);
+    menhir.position.set(sanctuary.x + Math.cos(a) * 11, 1, sanctuary.z + Math.sin(a) * 11);
+    menhir.rotation.y = a + Math.PI / 2;
+    menhir.rotation.z = (i % 2 ? .06 : -.06);
+    menhir.castShadow = true;
+    scene.add(menhir);
+    addCol(menhir.position.x, menhir.position.z, .6);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(.09, 6, 5), gateGlow);
+    dot.position.set(menhir.position.x, 2.3, menhir.position.z);
+    scene.add(dot);
+  }
+  const plazaStone = new THREE.Mesh(
+    new THREE.CircleGeometry(11, 30),
+    new THREE.MeshStandardMaterial({ map: cobbleTex(), roughness: 1 })
+  );
+  plazaStone.rotation.x = -Math.PI / 2;
+  plazaStone.position.set(sanctuary.x, .016, sanctuary.z);
+  plazaStone.receiveShadow = true;
+  scene.add(plazaStone);
+  // обелиск-приёмник света (сердце святилища)
+  const obelisk = new THREE.Group();
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(.7, .9, .5, 8), stoneMat);
+  pedestal.position.y = .25;
+  const heart = new THREE.Mesh(new THREE.OctahedronGeometry(.45),
+    new THREE.MeshStandardMaterial({ color: 0x3a3050, emissive: 0xffd27f, emissiveIntensity: 0 }));
+  heart.position.y = 1.35;
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(.35, 1.5, 4), stoneMat);
+  spire.position.y = .9;
+  spire.rotation.y = Math.PI / 4;
+  obelisk.add(pedestal, spire, heart);
+  obelisk.position.set(sanctuary.x, 0, sanctuary.z);
+  scene.add(obelisk);
+  addCol(sanctuary.x, sanctuary.z, .95);
+
+  /* ── созвездия на небе ── */
+  const constellationGroup = new THREE.Group();
+  // созвездие Лисы (север неба)
+  const foxPts = [[.30, .95], [.42, .95], [.36, .82], [.24, .76], [.50, .72], [.62, .66], [.72, .74], [.80, .84]];
+  const foxLinks = [[0, 2], [1, 2], [2, 3], [2, 4], [4, 5], [5, 6], [6, 7]];
+  function toSky(u, v) {
+    // (u,v) ∈ [0,1]² → купол: азимут ~север, высота 45..75°
+    const az = (-0.5 + u * .55) * Math.PI; // -0.27π..0.02π — к северу (z<0)
+    const el = (0.35 + v * .35) * Math.PI / 2; // ~31..63°
+    const R = 360;
+    return new THREE.Vector3(
+      Math.sin(az) * Math.cos(el) * R,
+      Math.sin(el) * R,
+      -Math.cos(az) * Math.cos(el) * R
+    );
+  }
+  const foxSky = foxPts.map(([u, v]) => toSky(u, v));
+  const foxStarGeo = new THREE.BufferGeometry().setFromPoints(foxSky);
+  const foxStarMat = new THREE.PointsMaterial({
+    color: 0xf5e3a0, size: 3.2, map: glow, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+  });
+  const foxStars = new THREE.Points(foxStarGeo, foxStarMat);
+  const foxLineGeo = new THREE.BufferGeometry().setFromPoints(
+    foxLinks.flatMap(([a, b]) => [foxSky[a], foxSky[b]])
+  );
+  const foxLineMat = new THREE.LineBasicMaterial({
+    color: 0xd9c07a, transparent: true, opacity: 0,
+  });
+  const foxLines = new THREE.LineSegments(foxLineGeo, foxLineMat);
+  constellationGroup.add(foxStars, foxLines);
+  // тусклые созвездия-соседи (заготовки будущих глав)
+  const faintMat = new THREE.PointsMaterial({
+    color: 0x8f84b8, size: 2, map: glow, transparent: true, opacity: .35,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  for (let c = 0; c < 4; c++) {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const az = (-0.8 + c * .5 + Math.random() * .3) * Math.PI;
+      const el = (.25 + Math.random() * .5) * Math.PI / 2;
+      pts.push(new THREE.Vector3(
+        Math.sin(az) * Math.cos(el) * 350,
+        Math.sin(el) * 350,
+        -Math.cos(az) * Math.cos(el) * 350
+      ));
+    }
+    constellationGroup.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts), faintMat));
+  }
+  constellationGroup.position.set(0, 0, 0); // вращается вместе со звёздами
+  scene.add(constellationGroup);
+  const constellations = {
+    foxLit: false,
+    litT: 0,
+    lightFox() {
+      this.foxLit = true;
+      this.litT = 0.0001;
+    },
+    update(dt) {
+      if (this.litT > 0) {
+        this.litT = Math.min(this.litT + dt, 3);
+        const k = Math.min(this.litT / 2.5, 1);
+        const pulse = .85 + Math.sin(this.litT * 6) * .15 * (1 - k * .7);
+        foxStarMat.opacity = k * pulse;
+        foxLineMat.opacity = k * .8 * pulse;
+      }
+    },
+  };
+
   /* ── дальние горы ── */
   const mountMat = new THREE.MeshStandardMaterial({ color: 0x241c48, flatShading: true, roughness: 1 });
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2 + .2;
-    const r = 95 + (i * 17.3) % 40;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + .2;
+    const r = 155 + (i * 17.3) % 55;
     const m = new THREE.Mesh(
-      new THREE.ConeGeometry(16 + (i * 7) % 14, 18 + (i * 11) % 26, 5), mountMat
+      new THREE.ConeGeometry(18 + (i * 7) % 16, 20 + (i * 11) % 30, 5), mountMat
     );
     m.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
     m.rotation.y = i;
@@ -81378,6 +81602,7 @@ function createWorld(scene, renderer) {
     colliders, lanterns, dayT: 0.56, nightF: 1, firefliesCollected: 0,
     onCollect: null, onLantern: null,
     burst, glowTex: glow,
+    boundsR: WORLD_R, sanctuary, obeliskHeart: heart, constellations,
   };
 
   world.lightLantern = (i) => {
@@ -81420,6 +81645,8 @@ function createWorld(scene, renderer) {
     starMat.opacity = k.nightF * .95;
     stars.rotation.y += dt * 0.004;
     stars.position.set(playerPos.x, 0, playerPos.z);
+    constellationGroup.rotation.y = stars.rotation.y;
+    constellations.update(dt);
 
     // окна и кристаллы ярче ночью
     windowMat.emissiveIntensity = 0.25 + k.nightF * 1.6;
@@ -81748,6 +81975,10 @@ class Combat {
     this.enemies = [];
     this.waveActive = false;
     this.waveQueue = [];
+    // кольца-волны босса
+    this.rings = [];
+    this.onBossDefeated = null;
+    this.onBossIntro = null;
     this.spawnPoints = [
       new THREE.Vector3(0, 0, -18), new THREE.Vector3(16, 0, -6),
       new THREE.Vector3(-16, 0, -6), new THREE.Vector3(8, 0, 14), new THREE.Vector3(-8, 0, 14),
@@ -81802,7 +82033,7 @@ class Combat {
     const dir = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
     const to = from.clone().addScaledVector(dir, BLINK_DIST);
     // мир и коллайдеры
-    const R = 55, d = Math.hypot(to.x, to.z);
+    const R = 95, d = Math.hypot(to.x, to.z);
     if (d > R) to.multiplyScalar(R / d);
     for (const c of this.world.colliders) {
       const dx = to.x - c.x, dz = to.z - c.z;
@@ -81825,16 +82056,40 @@ class Combat {
   }
 
   /* ── враги ── */
-  spawnEnemy(pos, elite = false) {
-    const r = elite ? .55 : .38;
-    const { group, body, eyeL, eyeR } = buildMist(r, elite);
+  spawnEnemy(pos, kind = "crawler") {
+    const cfg = {
+      crawler: { r: .38, hp: 3, speed: 2.3 },
+      elite: { r: .55, hp: 7, speed: 1.7 },
+      boss: { r: 1.1, hp: 40, speed: 1.85 },
+    }[kind];
+    const { group, body, eyeL, eyeR } = buildMist(cfg.r, kind !== "crawler");
+    if (kind === "boss") {
+      // корона шипов Пожирателя Света
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const spike = new THREE.Mesh(
+          new THREE.ConeGeometry(.14, .8, 4),
+          mat(0x2e2050, { emissive: 0x9b5bee, emissiveIntensity: 1.2 })
+        );
+        spike.position.set(Math.cos(a) * cfg.r * .75, cfg.r * 1.5, Math.sin(a) * cfg.r * .75);
+        spike.rotation.z = Math.cos(a) * .4;
+        group.add(spike);
+      }
+      const third = new THREE.Mesh(new THREE.SphereGeometry(.12, 6, 5),
+        mat(0xffd27f, { emissive: 0xff9a3f, emissiveIntensity: 2 }));
+      third.position.set(0, cfg.r * 1.05, cfg.r * .8);
+      group.add(third);
+    }
     group.position.copy(pos);
     this.scene.add(group);
     this.enemies.push({
       obj: group, body, eyes: [eyeL, eyeR],
-      r, hp: elite ? 7 : 3, maxHp: elite ? 7 : 3,
-      speed: elite ? 1.7 : 2.3 + Math.random() * .5,
-      elite, seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
+      r: cfg.r, hp: cfg.hp, maxHp: cfg.hp,
+      speed: cfg.speed + (kind === "crawler" ? Math.random() * .5 : 0),
+      elite: kind === "elite", boss: kind === "boss",
+      seed: Math.random() * 10, hitFlash: 0, touchCd: 0,
+      // босс: фазы и атаки
+      phase: 1, dashT: 0, dashDir: null, minionT: 5, ringT: 3,
     });
   }
 
@@ -81844,6 +82099,11 @@ class Combat {
     this.waveActive = true;
   }
 
+  startBoss(pos) {
+    this.spawnEnemy(pos, "boss");
+    this.onBossIntro && this.onBossIntro();
+  }
+
   aliveInWave() { return this.enemies.length + this.waveQueue.length; }
 
   damageEnemy(e, n) {
@@ -81851,15 +82111,29 @@ class Combat {
     e.hitFlash = .18;
     this.audio.hitEnemy();
     if (e.hp <= 0) {
-      this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, .5, 0)), 0x9b5bee, 12);
+      this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, .5 + e.r, 0)), 0x9b5bee, e.boss ? 26 : 12);
       // трофеи
-      const drop = e.elite ? 4 : 1 + (Math.random() < .5 ? 1 : 0);
+      const drop = e.boss ? 10 : e.elite ? 4 : 1 + (Math.random() < .5 ? 1 : 0);
       this.world.firefliesCollected += drop;
       this.world.onCollect && this.world.onCollect(this.world.firefliesCollected);
       this.scene.remove(e.obj);
       this.enemies.splice(this.enemies.indexOf(e), 1);
       this.audio.enemyDie();
-      this.onEnemyKilled && this.onEnemyKilled(e);
+      if (e.boss) {
+        // свита исчезает вместе с хозяином
+        for (const other of [...this.enemies]) {
+          if (other === e) continue;
+          this.world.burst(other.obj.position.clone().add(new THREE.Vector3(0, .5, 0)), 0x9b5bee, 8);
+          this.scene.remove(other.obj);
+          this.enemies.splice(this.enemies.indexOf(other), 1);
+        }
+        // очистить кольца
+        for (const ring of this.rings) this.scene.remove(ring.mesh);
+        this.rings.length = 0;
+        this.onBossDefeated && this.onBossDefeated();
+      } else {
+        this.onEnemyKilled && this.onEnemyKilled(e);
+      }
     }
   }
 
@@ -81940,8 +82214,13 @@ class Combat {
       dir.y = 0;
       const dist = dir.length();
       dir.normalize();
-      e.obj.position.addScaledVector(dir, e.speed * dt);
-      e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+
+      if (e.boss) {
+        this._updateBoss(e, dt, elapsed, playerPos, dir, dist);
+      } else {
+        e.obj.position.addScaledVector(dir, e.speed * dt);
+        e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+      }
       // не заходят в дома/деревья
       for (const c of this.world.colliders) {
         const dx = e.obj.position.x - c.x, dz = e.obj.position.z - c.z;
@@ -81963,12 +82242,92 @@ class Combat {
       }
       // касание — урон героине
       e.touchCd = Math.max(0, e.touchCd - dt);
-      if (dist < e.r + .55 && e.touchCd <= 0 && !this.dead) {
-        e.touchCd = 1.1;
-        this.hurtPlayer(1, e.obj.position);
+      const touchRange = e.r + .55;
+      if (dist < touchRange && e.touchCd <= 0 && !this.dead) {
+        e.touchCd = e.boss ? 1.4 : 1.1;
+        this.hurtPlayer(e.boss ? 2 : 1, e.obj.position);
         // мягкий отброс героини
         const away = new THREE.Vector3().subVectors(playerPos, e.obj.position).setY(0).normalize();
-        player.obj.position.addScaledVector(away, .8);
+        player.obj.position.addScaledVector(away, e.boss ? 1.6 : .8);
+      }
+    }
+
+    // кольца-волны: расширяются, бьют по радиусу
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const ring = this.rings[i];
+      ring.r += 4.6 * dt;
+      ring.mesh.scale.setScalar(ring.r);
+      ring.mesh.material.opacity = Math.max(0, .85 - ring.r / 16);
+      const dPlayer = Math.hypot(playerPos.x - ring.x, playerPos.z - ring.z);
+      if (!ring.hitDone && Math.abs(dPlayer - ring.r) < .6) {
+        ring.hitDone = true;
+        this.hurtPlayer(1, null);
+      }
+      if (ring.r > 16) {
+        this.scene.remove(ring.mesh);
+        this.rings.splice(i, 1);
+      }
+    }
+  }
+
+  /* ── босс: Пожиратель Света ── */
+  _updateBoss(e, dt, elapsed, playerPos, dir, dist) {
+    e.phase = e.hp > 26 ? 1 : e.hp > 12 ? 2 : 3;
+    // контактный урон и погоня обрабатываются в общем цикле; здесь спец-атаки
+    if (e.dashT > 0) {
+      // фаза рывка
+      e.dashT -= dt;
+      e.obj.position.addScaledVector(e.dashDir, 13 * dt);
+      if (e.dashT <= 0) e.dashDir = null;
+      return;
+    }
+    // обычное движение (медленнее при телеграфе)
+    const slow = e.chargeT > 0 ? 0 : 1;
+    e.obj.position.addScaledVector(dir, e.speed * slow * dt);
+    e.obj.rotation.y = Math.atan2(dir.x, dir.z);
+    if (e.chargeT > 0) {
+      e.chargeT -= dt;
+      if (e.chargeT <= 0) { e.dashT = .55; e.dashDir = dir.clone(); }
+      return;
+    }
+    if (e.phase >= 2) {
+      // рывок каждые ~4.5с
+      e.dashCd = (e.dashCd ?? 4) - dt;
+      if (e.dashCd <= 0 && dist > 3) {
+        e.dashCd = 4.5;
+        e.chargeT = .7; // телеграф: замирает и сжимается
+        this.world.burst(e.obj.position.clone().add(new THREE.Vector3(0, 1.6, 0)), 0x6b4a8a, 6);
+      }
+      // миньоны
+      e.minionT -= dt;
+      if (e.minionT <= 0) {
+        e.minionT = 8;
+        const minions = this.enemies.filter(x => !x.boss).length;
+        if (minions < 2) {
+          const a = Math.random() * Math.PI * 2;
+          const p = e.obj.position.clone().add(new THREE.Vector3(Math.cos(a) * 2, 0, Math.sin(a) * 2));
+          this.spawnEnemy(p, "crawler");
+          this.world.burst(p.clone().add(new THREE.Vector3(0, .6, 0)), 0x9b5bee, 8);
+        }
+      }
+    }
+    if (e.phase >= 3) {
+      // кольца-волны
+      e.ringT -= dt;
+      if (e.ringT <= 0) {
+        e.ringT = 4.2;
+        const mesh = new THREE.Mesh(
+          new THREE.TorusGeometry(1, .07, 6, 48),
+          new THREE.MeshBasicMaterial({
+            color: 0xb98bff, transparent: true, opacity: .85,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+          })
+        );
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.set(e.obj.position.x, .3, e.obj.position.z);
+        this.scene.add(mesh);
+        this.rings.push({ mesh, r: 1, x: e.obj.position.x, z: e.obj.position.z, hitDone: false });
+        this.audio.blink();
       }
     }
   }
@@ -82018,7 +82377,7 @@ class Dialog {
 
 class Story {
   constructor(deps) {
-    Object.assign(this, deps); // scene, world, player, combat, audio, fox, save, persist, camp
+    Object.assign(this, deps); // scene, world, player, combat, audio, fox, save, persist, camp, puzzles, events
     this.dialog = new Dialog(lock => deps.input.setLocked(lock));
     window.__audioBlip = () => this.audio.blip();
     this.step = this.save.storyStep ?? 0;
@@ -82026,15 +82385,32 @@ class Story {
     if (this.step === 1 && (this.save.questHerbs ?? 0) >= 3) this.step = 2;
     this.potions = this.save.potions ?? 0;
     this.herbCarry = this.save.herbCarry ?? 0;
-    this.questHerbs = this.save.questHerbs ?? 0; // травы, сданные в квест
+    this.questHerbs = this.save.questHerbs ?? 0;
     this.blinkUnlocked = this.save.blinkUnlocked ?? false;
     this.potionRecipe = this.save.potionRecipe ?? false;
+    this.bossSpawned = false;
     this.blinkBtn = $("blinkBtn");
     this.blinkBtn.style.display = this.blinkUnlocked ? "grid" : "none";
     this.onPotions = null;
 
     this._herbs = [];
     this._spawnHerbs();
+
+    // восстановление загадок из сейва
+    const pz = this.save.puzzles ?? {};
+    if (pz.mirrors) this.puzzles.solved.mirrors = true;
+    if (pz.stars) this.puzzles.solved.stars = true;
+    if (pz.bells) this.puzzles.solved.bells = true;
+    this.puzzles.restore();
+    if (pz.mirrors) this.world.obeliskHeart.material.emissiveIntensity = .6;
+    if (this.save.foxLit || this.step >= 12) {
+      // созвездие уже зажжено (прошлая сессия) — без повторной анимации
+      this.world.constellations.lightFox();
+      this.world.constellations.litT = 3;
+      this.world.obeliskHeart.material.emissiveIntensity = 2.4;
+      this._bossDone = true;
+      this.save.foxLit = true;
+    }
 
     this._applyStep(true);
     this.refreshPotion();
@@ -82123,9 +82499,106 @@ class Story {
         break;
       case 5:
         this.objective("Глава 1 завершена ✨ Гавань дышит", !initial);
+        if (!initial) setTimeout(() => toast("Дэн зовёт тебя к костру 🔥", 3600), 3200);
+        break;
+      case 6:
+        this.objective("Пройди врата Сумеречного леса 🌲", !initial);
+        break;
+      case 7:
+        this.objective("Загадка зеркал: доведи луч до обелиска 🪞", !initial);
+        break;
+      case 8:
+        this.objective("Загадка звёзд: соедини созвездие Лисы ✦", !initial);
+        break;
+      case 9:
+        this.objective("Загадка грибов: повтори песню колокольчиков 🍄", !initial);
+        break;
+      case 10:
+        this.objective("Святилище пробуждено. Войди в круг камней ⚔️", !initial);
+        break;
+      case 11:
+        this.objective("Победи Пожирателя Света ⚔️", !initial);
+        break;
+      case 12:
+        this.objective("Небо вспыхнуло! Вернись к Дэну 🧑", !initial);
+        break;
+      case 13:
+        this.objective("Глава 2 завершена ✨ Созвездие Лисы горит", !initial);
         break;
     }
     this.save.storyStep = this.step;
+  }
+
+  /* ── цель для компаса ── */
+  getTarget() {
+    const s = this.world.sanctuary;
+    switch (this.step) {
+      case 5: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      case 6: return { x: 0, z: -36, label: "врата леса" };
+      case 7: return { x: -3, z: -47, label: "зеркала" };
+      case 8: return { x: -8, z: -54, label: "звёздная плита" };
+      case 9: return { x: 9, z: -55, label: "колокольчики" };
+      case 10:
+      case 11: return { x: s.x, z: s.z, label: "святилище" };
+      case 12: return { x: this.camp.x - 1.2, z: this.camp.z - .8, label: "Дэн" };
+      default: return null;
+    }
+  }
+
+  /* ── триггеры зоны (вызывать из main каждый кадр) ── */
+  zoneTriggers(playerPos) {
+    if (this.dialog.active) return;
+    // шаг 5 → 6: через 8 секунд после финала главы 1 Дэн зовёт (кнопкой у Дэна)
+    // шаг 6 → 7: прошла врата
+    if (this.step === 6 && playerPos.z < -37) {
+      this.nextStep();
+      toast("Сумеречный лес встречает тебя шёпотом листьев 🍂", 3600);
+    }
+    // шаг 10/11 → босс: вошла в круг камней (или вернулась после перезагрузки в бою)
+    if ((this.step === 10 || this.step === 11) && !this.bossSpawned) {
+      const s = this.world.sanctuary;
+      if (Math.hypot(playerPos.x - s.x, playerPos.z - s.z) < 11) {
+        this.bossSpawned = true;
+        this.nextStep();
+        this.combat.startBoss(new THREE.Vector3(s.x, 0, s.z - 6));
+        this.audio.hurt();
+        toast("ПОЖИРАТЕЛЬ СВЕТА ПРОБУЖДАЕТСЯ ⚔️", 4200);
+      }
+    }
+    // страховка: босса нет, свиты нет, а шаг всё ещё 11 → победа засчитана
+    if (this.step === 11 && this.bossSpawned && this.combat.enemies.length === 0) {
+      this.bossDefeated();
+    }
+  }
+
+  /* ── решённые загадки (колбэки от puzzles) ── */
+  onPuzzleSolved(name) {
+    this.save.puzzles = { ...this.puzzles.solved };
+    if (name === "mirrors" && this.step === 7) {
+      this.world.obeliskHeart.material.emissiveIntensity = .6;
+      this.nextStep();
+      toast("Луч коснулся обелиска! Сердце святилища тёплое ✨", 3600);
+    }
+    if (name === "stars" && this.step === 8) {
+      this.nextStep();
+      toast("Звёзды помнят рисунок Лисы ✦", 3200);
+    }
+    if (name === "bells" && this.step === 9) {
+      this.nextStep();
+    }
+  }
+
+  /* ── босс повержен ── */
+  bossDefeated() {
+    if (this._bossDone) return;
+    this._bossDone = true;
+    this.save.foxLit = true;
+    this.audio.questDone();
+    this.world.constellations.lightFox();
+    this.world.obeliskHeart.material.emissiveIntensity = 2.4;
+    this.events.addSparkles(8);
+    this.nextStep();
+    toast("СОЗВЕЗДИЕ ЛИСЫ ВОСПЫЛАЛО В НЕБЕ ✨🦊", 5000);
   }
 
   nextStep() {
@@ -82163,6 +82636,25 @@ class Story {
           setTimeout(() => toast("Рецепт «Зелье росы»: 2 лунные травы → лечение 🧪", 4200), 1800);
         }
         this.persist();
+      });
+    } else if (this.step === 5) {
+      D.open("Дэн", "🧑", [
+        "Смотри на север, Юляся. Видишь пустое место в небе?",
+        "Созвездие Лисы погасло. Лисы — знак Искры. Если оно исчезнет навсегда, Тишь доберётся и до Гавани.",
+        "За мостом — Сумеречный лес. Найди святилище, разгадай его тайны и зажги сердце созвездия.",
+        "И вот ещё что… в лесу прячут блёстки 💎. Они пригодятся у алтаря святилища.",
+      ], () => this.nextStep());
+    } else if (this.step === 12) {
+      D.open("Дэн", "🧑", [
+        "Небо… Ты видишь? Созвездие Лисы горит снова! Вся Гавань смотрит вверх.",
+        "Тишь отступила от леса. Но она запомнила твоё имя, хранительница.",
+        "Собирай блёстки 💎 — алтарь у святилища сделает твоё сердце ярче.",
+        "Отдыхай. Скоро откроются новые пути… 🌟",
+      ], () => {
+        this.nextStep();
+        this.events.addSparkles(3);
+        this.audio.questDone();
+        toast("Глава 2 завершена ✨ Награда: +3 блёстки 💎", 4200);
       });
     } else {
       D.open("Дэн", "🧑", ["Отдыхай, хранительница. Скоро откроются новые пути."]);
@@ -82532,6 +83024,8 @@ class AudioEngine {
 
 
 
+
+
 /* ── сейвы ── */
 const SAVE_KEY = "asteria_save_v1";
 const save = {
@@ -82539,6 +83033,7 @@ const save = {
   dayT: 0.56, muted: false,
   storyStep: 0, questHerbs: 0, herbCarry: 0, potions: 0,
   blinkUnlocked: false, potionRecipe: false,
+  sparkles: 0, chests: [], maxHpBonus: 0, puzzles: {},
 };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
@@ -82603,15 +83098,27 @@ const combat = new Combat(scene, world, audio, world.glowTex);
 combat.refreshHp();
 combat.onDeath = () => {
   toast("Мгла поглотила тебя… но свет возвращает тебя 💫", 3200);
+  const inBossFight = combat.enemies.some(e => e.boss);
   setTimeout(() => {
-    player.obj.position.set(camp.x + .8, 0, camp.z + 1.6);
+    if (inBossFight) player.obj.position.set(0, 0, -58);
+    else player.obj.position.set(camp.x + .8, 0, camp.z + 1.6);
     combat.respawn();
   }, 1400);
 };
 combat.onWaveCleared = () => story.waveCleared();
+combat.onBossDefeated = () => story.bossDefeated();
+
+const puzzles = new Puzzles(scene, world, audio, world.glowTex, player, input);
+const events = new Events(scene, world, audio, world.glowTex, save, persist, player);
+combat.maxHp += events.maxHpBonus;
+combat.refreshHp();
+events.onAltarUp = () => { combat.maxHp = 5 + events.maxHpBonus; combat.hp = combat.maxHp; combat.refreshHp(); };
+events.onSparkles = n => { document.getElementById("sparkCount").textContent = n; };
+document.getElementById("sparkCount").textContent = events.sparkles;
+puzzles.onSolved = name => story.onPuzzleSolved(name);
 
 const story = new Story({
-  scene, world, player, combat, audio, fox, save, persist, input, camp,
+  scene, world, player, combat, audio, fox, save, persist, input, camp, puzzles, events,
 });
 story.ensureHerbMeshes(buildHerb);
 
@@ -82667,43 +83174,67 @@ startScreen.addEventListener("pointerdown", () => {
   setTimeout(() => showToast("Собирай ✨ и зажигай 🏮 фонари", 3600), 900);
 }, { once: false });
 
-/* ── взаимодействие: фонари, Дэн, котелок ── */
+/* ── взаимодействие: фонари, Дэн, котелок, загадки, сундуки, алтарь ── */
 let nearAct = null;
-const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲" };
+const ACT_EMOJI = { lantern: "🔥", den: "🧑", cauldron: "🍲", mirror: "🪞", slab: "✦", bell: "🍄", chest: "💎", altar: "💠" };
 function checkInteract() {
-  if (story.dialog.active) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
-  let best = null, bestD = 2.4;
+  if (story.dialog.active || puzzles._slabOpen) { nearAct = null; interactBtn.classList.remove("show"); input.consumeInteract(); return; }
+  const px = player.position.x, pz = player.position.z;
+  const cand = [];
   world.lanterns.forEach((L, i) => {
-    if (L.lit) return;
-    const d = Math.hypot(player.position.x - L.x, player.position.z - L.z);
-    if (d < bestD) { bestD = d; best = { type: "lantern", i }; }
+    if (!L.lit) cand.push({ type: "lantern", i, d: Math.hypot(px - L.x, pz - L.z) });
   });
-  {
-    const d = Math.hypot(player.position.x - den.group.position.x, player.position.z - den.group.position.z);
-    if (d < bestD) { bestD = d; best = { type: "den" }; }
-  }
-  {
-    const d = Math.hypot(player.position.x - (camp.x + 1.1), player.position.z - (camp.z + .3));
-    if (d < bestD) { bestD = d; best = { type: "cauldron" }; }
-  }
-  if ((best && best.type) !== (nearAct && nearAct.type)) {
+  cand.push({ type: "den", d: Math.hypot(px - den.group.position.x, pz - den.group.position.z) });
+  cand.push({ type: "cauldron", d: Math.hypot(px - (camp.x + 1.1), pz - (camp.z + .3)) });
+  const pn = puzzles.near();
+  if (pn) cand.push({ type: pn.kind, ref: pn.ref, d: Math.hypot(px - pn.x, pz - pn.z) });
+  for (const c of events.chests) if (!c.opened) cand.push({ type: "chest", ref: c, d: Math.hypot(px - c.x, pz - c.z) });
+  if (story.step >= 12) cand.push({ type: "altar", d: Math.hypot(px - events.altar.x, pz - events.altar.z) });
+  cand.sort((a, b) => a.d - b.d);
+  const best = cand.length && cand[0].d < 2.4 ? cand[0] : null;
+  const key = best ? best.type : null;
+  if (key !== (nearAct && nearAct.type)) {
     nearAct = best;
     if (best) { interactBtn.textContent = ACT_EMOJI[best.type]; interactBtn.classList.add("show"); }
     else interactBtn.classList.remove("show");
   }
   if (input.consumeInteract() && nearAct) {
-    if (nearAct.type === "lantern") {
-      if (world.lightLantern(nearAct.i)) {
-        save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
-        world.onLantern(nearAct.i);
-      }
-    } else if (nearAct.type === "den") {
-      story.talkToDen();
-    } else if (nearAct.type === "cauldron") {
-      story.useCauldron();
+    switch (nearAct.type) {
+      case "lantern":
+        if (world.lightLantern(nearAct.i)) {
+          save.lanterns = world.lanterns.map((l, i) => l.lit ? i : -1).filter(i => i >= 0);
+          world.onLantern(nearAct.i);
+        }
+        break;
+      case "den": story.talkToDen(); break;
+      case "cauldron": story.useCauldron(); break;
+      case "mirror": case "slab": case "bell":
+        puzzles.interact({ kind: nearAct.type, ref: nearAct.ref });
+        break;
+      case "chest": events.openChest(nearAct.ref); break;
+      case "altar": events.useAltar(); break;
     }
     nearAct = null;
     interactBtn.classList.remove("show");
+  }
+}
+
+/* ── компас к цели ── */
+const compassEl = document.getElementById("compass");
+const lastCompass = { s: "" };
+function updateCompass() {
+  const t = story.getTarget();
+  if (!t) { if (lastCompass.s !== "") { compassEl.style.display = "none"; lastCompass.s = ""; } return; }
+  const dx = t.x - player.position.x, dz = t.z - player.position.z;
+  const dist = Math.hypot(dx, dz);
+  let ang = Math.atan2(dx, dz) - cam.yaw;
+  const arrows = ["▲", "◤", "◄", "◣", "▼", "◢", "►", "◥"];
+  const idx = Math.round((((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
+  const s = `${arrows[idx]} ${t.label} · ${Math.round(dist)}м`;
+  if (s !== lastCompass.s) {
+    compassEl.style.display = "block";
+    compassEl.textContent = s;
+    lastCompass.s = s;
   }
 }
 
@@ -82753,6 +83284,10 @@ function frame() {
   // ── спутники и декор жизни ──
   fox.update(dt, elapsed, player.position);
   story.updateHerbs(dt, elapsed, player.position);
+  story.zoneTriggers(player.position);
+  puzzles.update(elapsed);
+  events.update(dt, elapsed, player.position);
+  updateCompass();
   den.glow.material.opacity = .8 + Math.sin(elapsed * 5) * .15;
   den.lamp.rotation.y = elapsed * 1.2;
   den.group.rotation.z = Math.sin(elapsed * .8) * .015;
@@ -82796,7 +83331,7 @@ addEventListener("pagehide", persist);
 
 
 // отладочный доступ (тесты)
-window.__debug = { world, player, combat, story, fox };
+window.__debug = { world, player, combat, story, fox, puzzles, events };
 
 } catch (e) { var __err = document.createElement("pre");__err.style.cssText = "color:#ff7a9e;padding:16px;white-space:pre-wrap;font-size:12px";__err.textContent = "ОШИБКА СБОРКИ: " + (e && e.stack || e);document.body.prepend(__err); }
 </script>

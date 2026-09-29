@@ -130,7 +130,7 @@ export class Player {
     if (this.obj.position.y <= 0) { this.obj.position.y = 0; this.vel.y = 0; this.onGround = true; }
 
     // границы мира
-    const R = 55, d = Math.hypot(this.obj.position.x, this.obj.position.z);
+    const R = 95, d = Math.hypot(this.obj.position.x, this.obj.position.z);
     if (d > R) { this.obj.position.x *= R / d; this.obj.position.z *= R / d; }
 
     // круглые коллайдеры
